@@ -1,0 +1,57 @@
+name: Verify and publish v0.0.1
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'downloads/**'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: public-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm package
+      - name: Check committed download packages
+        working-directory: downloads
+        run: sha256sum --check SHA256SUMS.txt
+      - name: Publish checked install packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="v$(node -p 'require("./package.json").version')"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; leaving it unchanged."
+            exit 0
+          fi
+          unzip -q "downloads/wechat-layout-$tag.zip" -d "$RUNNER_TEMP/checked-plugin"
+          gh release create "$tag" \
+            "downloads/wechat-layout-$tag.zip" \
+            "downloads/wechat-layout-extension-$tag.zip" \
+            "downloads/test-vault-$tag.zip" \
+            downloads/SHA256SUMS.txt \
+            "$RUNNER_TEMP/checked-plugin/wechat-layout/main.js" \
+            "$RUNNER_TEMP/checked-plugin/wechat-layout/manifest.json" \
+            "$RUNNER_TEMP/checked-plugin/wechat-layout/styles.css" \
+            --target "$GITHUB_SHA" \
+            --title "$tag · 公众号图文排版" \
+            --notes-file "docs/RELEASE-$tag.md"

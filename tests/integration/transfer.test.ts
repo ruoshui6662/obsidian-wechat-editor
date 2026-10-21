@@ -1,0 +1,30 @@
+import {afterEach,it,expect} from 'vitest';
+import {readFile,readdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {WebSocket} from 'ws';
+import {BridgeServer} from '../../packages/plugin/src/bridge';
+import {parseArticle} from '../../packages/core/src/parse';
+import {renderArticle} from '../../packages/core/src/render';
+import {DEFAULT_LAYOUT} from '../../packages/core/src/styles';
+import {CopyJobController,type Snapshot} from '../../packages/core/src/job';
+import {prepareAssets,resolveVaultAsset,type VaultPort} from '../../packages/plugin/src/vault-assets';
+import {applyTemplate} from '../../packages/plugin/src/templates';
+import {testAccount} from '../helpers/fakes';
+const root=resolve('fixtures/vault');const bridges:BridgeServer[]=[],sockets:WebSocket[]=[];
+afterEach(async()=>{sockets.forEach(s=>s.terminate());for(const bridge of bridges)await bridge.stop();bridges.length=0;sockets.length=0;});
+async function setup(){
+ const bridge=new BridgeServer({portStart:0,portEnd:0});bridges.push(bridge);const info=await bridge.start();
+ const files=await readdir(root,{recursive:true});const vault:VaultPort={listFiles:()=>files,readBinary:async path=>new Uint8Array(await readFile(resolve(root,path)))};
+ const article=parseArticle(await readFile(resolve(root,'日常测试.md'),'utf8'),'日常测试.md');
+ const uploaded:any[]=[];const writes:string[]=[];let breakAt=0;
+ const connect=async()=>{const socket=new WebSocket(info.endpoint,{origin:'chrome-extension://'+'a'.repeat(32)});sockets.push(socket);await new Promise<void>((r,j)=>{socket.once('open',r);socket.once('error',j)});
+  const ready=new Promise<void>(r=>socket.once('message',()=>r()));socket.on('message',raw=>{const m=JSON.parse(raw.toString());if(m.type==='account-check'){socket.send(JSON.stringify({version:1,type:'account',requestId:m.requestId,payload:{account:testAccount}}));return;}if(m.type!=='upload')return;uploaded.push(m);if(breakAt&&uploaded.length===breakAt){socket.terminate();return;}socket.send(JSON.stringify({...m,type:'upload-result',payload:{key:m.payload.key,url:'https://mmbiz.qpic.cn/test/'+m.payload.key}}));});
+  socket.send(JSON.stringify({version:1,type:'hello',requestId:'hello',payload:{token:info.pairingToken,account:testAccount}}));await ready;return socket;
+ };
+ const controller=new CopyJobController({verifyAccount:(account,signal)=>bridge.verifyAccount(account,signal),prepare:s=>prepareAssets(s.article,ref=>resolveVaultAsset(ref,s.article.sourcePath,vault),new Map(),async()=>{throw Error('No baking expected');}),upload:(asset,account,signal)=>bridge.upload(asset,account,signal),render:(s,sources)=>renderArticle(s.article,s.layout,sources,s.overrides),writeClipboard:async value=>{writes.push(value.html)},isCurrent:()=>true,onEvent:()=>{}});
+ const snapshot:Snapshot={id:'integration',article,layout:DEFAULT_LAYOUT,overrides:{},account:testAccount,revision:'1'};
+ return{connect,controller,snapshot,uploaded,writes,disconnectOn:(n:number)=>{breakAt=n;}};
+}
+it('fixtureArticleTransfersThroughRealBridge',async()=>{const s=await setup();await s.connect();const output=await s.controller.run(s.snapshot);const sources=[...output.html.matchAll(/<img[^>]*src="([^"]*)"/g)].map(m=>m[1]);expect(sources).toHaveLength(s.snapshot.article.images.length);expect(sources.every(src=>src.startsWith('https://mmbiz.qpic.cn/test/'))).toBe(true);expect(sources[1]).toBe(sources[2]);expect(s.uploaded.length).toBeLessThan(sources.length);expect(s.uploaded.map(m=>m.payload.mime)).toEqual(expect.arrayContaining(['image/png','image/jpeg','image/webp','image/gif']));expect(s.writes).toHaveLength(1);expect(output.html).not.toMatch(/blob:|app:|file:/);});
+it('retryAfterDisconnectKeepsCompletedAssets',async()=>{const s=await setup();s.disconnectOn(2);await s.connect();await expect(s.controller.run(s.snapshot)).rejects.toMatchObject({code:'bridge-disconnected'});expect(s.writes).toHaveLength(0);const first=s.uploaded[0].payload.key;s.disconnectOn(0);await s.connect();await s.controller.run(s.snapshot);expect(s.uploaded.filter(m=>m.payload.key===first)).toHaveLength(1);expect(s.writes).toHaveLength(1);});
+it('templateImagesAreNotMissed',async()=>{const s=await setup();s.snapshot.article=applyTemplate(s.snapshot.article,{id:'t',name:'test',layout:DEFAULT_LAYOUT,headerMarkdown:'![页眉](表情.png)',footerMarkdown:'![页脚](照片.jpg)'});await s.connect();const output=await s.controller.run(s.snapshot);expect([...output.html.matchAll(/<img /g)]).toHaveLength(10);expect(output.html.indexOf('alt="页眉"')).toBeLessThan(output.html.indexOf('大家好'));expect(output.html.indexOf('alt="页脚"')).toBeGreaterThan(output.html.indexOf('往期推荐'));});

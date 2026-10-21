@@ -1,0 +1,12 @@
+import {build} from 'esbuild';
+import {mkdir,copyFile,readFile} from 'node:fs/promises';
+import {builtinModules} from 'node:module';
+const version=JSON.parse(await readFile('package.json','utf8')).version;
+const plugin='dist/obsidian/wechat-layout',extension='dist/extension';
+await mkdir(plugin,{recursive:true});await mkdir(extension,{recursive:true});
+await build({entryPoints:['packages/plugin/src/main.ts'],define:{__WECHAT_LAYOUT_VERSION__:JSON.stringify(version)},bundle:true,platform:'node',target:'es2022',format:'cjs',outfile:plugin+'/main.js',external:['obsidian','electron','@codemirror/state','@codemirror/view','bufferutil','utf-8-validate',...builtinModules,...builtinModules.map(n=>'node:'+n)],logLevel:'warning'});
+await build({entryPoints:{background:'packages/extension/src/background.ts',popup:'packages/extension/src/popup.ts'},bundle:true,platform:'browser',target:'chrome116',format:'iife',outdir:extension,logLevel:'warning'});
+for(const file of ['manifest.json','styles.css'])await copyFile('packages/plugin/'+file,plugin+'/'+file);
+for(const file of ['manifest.json','popup.html','popup.css'])await copyFile('packages/extension/'+file,extension+'/'+file);
+await copyFile('packages/plugin/manifest.json','manifest.json');
+console.log('Built Obsidian plugin and browser extension.');

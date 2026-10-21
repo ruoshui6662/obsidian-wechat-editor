@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"ESNext","moduleResolution":"Bundler","strict":true,"esModuleInterop":true,"skipLibCheck":true,"lib":["ES2022","DOM","DOM.Iterable"],"types":["node","chrome"],"noEmit":true},"include":["packages/**/*.ts","tests/**/*.ts","vitest.config.ts"]}
