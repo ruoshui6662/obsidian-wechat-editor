@@ -26,6 +26,7 @@ async function collect(name,from){
 }
 for(const dep of Object.keys(pkg.dependencies))await collect(dep,root);
 await writeFile(join(plugin,'THIRD_PARTY_LICENSES.txt'),notices);
+await cp('LICENSE',join(plugin,'LICENSE'));await cp('LICENSE',join(extension,'LICENSE'));
 await rm(vault,{recursive:true,force:true});await mkdir(join(vault,'.obsidian/plugins'),{recursive:true});await cp('fixtures/vault',vault,{recursive:true});await cp(plugin,join(vault,'.obsidian/plugins/wechat-layout'),{recursive:true});
 await writeFile(join(vault,'.obsidian/community-plugins.json'),JSON.stringify(['wechat-layout']));await writeFile(join(vault,'.obsidian/app.json'),'{}');await cp('docs/INSTALL.md',join(vault,'安装与试用.md'));
 await mkdir('release',{recursive:true});const bundles=[['wechat-layout-'+tag+'.zip',dirname(plugin),'wechat-layout'],['wechat-layout-extension-'+tag+'.zip',dirname(extension),'extension'],['test-vault-'+tag+'.zip',dirname(vault),'test-vault']];let sums='';

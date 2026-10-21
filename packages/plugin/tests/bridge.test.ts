@@ -1,4 +1,4 @@
-import {afterEach,describe,it,expect} from 'vitest';
+import {afterEach,describe,it,expect,vi} from 'vitest';
 import {WebSocket} from 'ws';
 import {createServer} from 'node:net';
 import {BridgeServer} from '../src/bridge';
@@ -29,5 +29,11 @@ describe('local bridge',()=>{
   const info=await start();const s=await connect(info.endpoint,info.pairingToken);await message(s);const request=message(s);const task=info.server.upload(tinyAsset(),testAccount,new AbortController().signal);const assertion=expect(task).rejects.toMatchObject({code:'bridge-disconnected'});await request;s.close();await assertion;
  });
  it('stopReleasesPortAndTimers',async()=>{const info=await start();const port=Number(new URL(info.endpoint).port);await info.server.stop();const s=createServer();await new Promise<void>((r,j)=>s.once('error',j).listen(port,'127.0.0.1',r));await new Promise<void>(r=>s.close(()=>r()));});
- it('rejectsOversizedAndInvalidPayload',async()=>{const info=await start();const s=await connect(info.endpoint,info.pairingToken);await message(s);s.send(JSON.stringify({version:1,type:'account',requestId:'bad',payload:{id:42}}));await new Promise<void>(r=>s.once('close',()=>r()));expect(info.server.getAccount()).toBeNull();});
+ it('rejectsOversizedAndInvalidPayload',async()=>{
+  const info=await start();const s=await connect(info.endpoint,info.pairingToken);await message(s);
+  s.send(JSON.stringify({version:1,type:'account',requestId:'bad',payload:{id:42}}));
+  await new Promise<void>(r=>s.once('close',()=>r()));
+  // The client close can precede the server close callback, depending on the OS.
+  await vi.waitFor(()=>expect(info.server.getAccount()).toBeNull());
+ });
 });
