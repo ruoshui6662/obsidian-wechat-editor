@@ -11,7 +11,7 @@ afterEach(()=>{cleanups.splice(0).forEach(clean=>clean());vi.unstubAllGlobals();
 async function setup(){
  const bytes=await readFile('fixtures/vault/表情.png');let source='旧正文\n\n![[表情.png]] ^pic',sequence=0;const revoked:string[]=[];
  vi.stubGlobal('URL',class extends URL{static createObjectURL(){return 'blob:preview-'+sequence++;}static revokeObjectURL(url:string){revoked.push(url);}});
- const plugin=new WechatLayoutPlugin({} as any,{} as any);plugin.settings=loadSettings({notes:{'稿.md':{overrides:{pic:{image:{bakeEffects:true,shadow:8}}}}}});plugin.activeNote={path:'稿.md',extension:'md'} as any;plugin.readSource=async()=>source;
+ const plugin=new WechatLayoutPlugin({} as any,{} as any);plugin.settings=loadSettings({notes:{'稿.md':{overrides:{pic:{image:{bakeEffects:true,radius:4,shadow:8}}}}}});plugin.activeNote={path:'稿.md',extension:'md'} as any;plugin.readSource=async()=>source;
  const port={listFiles:()=>['表情.png'],readBinary:async()=>bytes};plugin.vaultPort=async()=>port;const effects=vi.fn(async():Promise<{bytes:Uint8Array;mime:string}>=>({bytes,mime:'image/png'}));plugin.effectRenderer=effects;
  await plugin.refresh();const root=document.createElement('div');document.body.append(root);const panel=new LayoutPanel(root,plugin.host());(plugin as any).views.add({panel});panel.setState(plugin.state());panel.showPage('preview');cleanups.push(()=>{plugin.onunload();panel.destroy();});
  return{plugin,root,panel,port,effects,bytes,revoked,setSource:(value:string)=>{source=value;plugin.invalidate();},paper:()=>root.querySelector('.wx-paper')!.shadowRoot!};
@@ -66,14 +66,22 @@ it('previewUsesAnExplicitMobileReadingFrameIndependentOfPanelWidth',async()=>{
  const s=await setup();const frame=s.root.querySelector<HTMLElement>('[data-reading-width]');expect(frame).not.toBeNull();expect(frame!.dataset.readingWidth).toBe('375');expect(s.root.querySelector('.wx-preview-caption')?.textContent).toContain('375');expect(s.root.querySelector('.wx-paper')!.getAttribute('style')).toContain('375px');
 });
 it('previewRetainsBakedPhotoGeometryAcrossTextRefreshes',async()=>{
- const s=await setup(),geometry={naturalWidth:1200,paddingRatio:0.05};s.effects.mockResolvedValue({bytes:s.bytes,mime:'image/png',geometry} as any);await s.plugin.refresh({forceAssets:true});expect(s.plugin.state().geometry?.get('img-0')).toEqual(geometry);expect(s.paper().querySelector('[data-wx-photo]')).not.toBeNull();const count=s.effects.mock.calls.length;s.setSource('修改正文\n\n![[表情.png]] ^pic');await s.plugin.refresh();expect(s.effects).toHaveBeenCalledTimes(count);expect(s.plugin.state().geometry?.get('img-0')).toEqual(geometry);
+ const s=await setup(),geometry={naturalWidth:1200,paddingRatio:0};s.effects.mockResolvedValue({bytes:s.bytes,mime:'image/png',geometry} as any);await s.plugin.refresh({forceAssets:true});expect(s.plugin.state().geometry?.get('img-0')).toEqual(geometry);expect(s.paper().querySelector('[data-wx-photo]')).toBeNull();const count=s.effects.mock.calls.length;s.setSource('修改正文\n\n![[表情.png]] ^pic');await s.plugin.refresh();expect(s.effects).toHaveBeenCalledTimes(count);expect(s.plugin.state().geometry?.get('img-0')).toEqual(geometry);
 });
 it('scalesTheReferenceFrameToAvailableContentWidthAndCleansUp',async()=>{
  const observers:Array<{run:()=>void;disconnect:ReturnType<typeof vi.fn>}>=[];vi.stubGlobal('ResizeObserver',class{disconnect=vi.fn();constructor(run:()=>void){observers.push({run,disconnect:this.disconnect});}observe(){}});
  const s=await setup(),scroll=s.root.querySelector<HTMLElement>('.wx-preview-scroll')!,paper=s.root.querySelector<HTMLElement>('.wx-paper')!,frame=s.root.querySelector<HTMLElement>('.wx-reading-frame')!;scroll.style.padding='16px';Object.defineProperty(scroll,'clientWidth',{value:332,configurable:true});observers.forEach(o=>o.run());expect(frame.style.width).toBe('300px');expect(Number(paper.style.zoom)).toBeCloseTo(300/375);expect(paper.style.width).toBe('375px');s.panel.destroy();expect(observers.every(o=>o.disconnect.mock.calls.length)).toBe(true);expect(()=>observers.forEach(o=>o.run())).not.toThrow();
 });
-it('everyNewAppearanceParameterInvalidatesItsBakedPreviewWhileTextEditsStillReuseIt',async()=>{
- const s=await setup();await s.plugin.changeAllImages({shadow:8,bakeEffects:true},'all');let calls=s.effects.mock.calls.length;
- for(const patch of [{shadowOpacity:10},{shadowBlur:20},{shadowOffsetY:4},{backgroundMode:'preserve' as const}]){await s.plugin.changeAllImages(patch,'default');expect(s.effects).toHaveBeenCalledTimes(++calls);}
+it('shadowParametersUpdateHtmlWithoutRebakingRoundedPhotos',async()=>{
+ const s=await setup();await s.plugin.changeAllImages({shadow:8,radius:4,bakeEffects:true},'all');let calls=s.effects.mock.calls.length;
+ for(const patch of [{shadowOpacity:10},{shadowBlur:20},{shadowOffsetY:4}]){await s.plugin.changeAllImages(patch,'default');expect(s.effects).toHaveBeenCalledTimes(calls);}expect(s.paper().querySelector('img')!.style.boxShadow).toBe('0 4px 20px rgba(0,0,0,0.1)');
  s.setSource('仅改正文\n\n![[表情.png]] ^pic');await s.plugin.refresh();expect(s.effects).toHaveBeenCalledTimes(calls);
+});
+
+it('legacyShadowOnlySettingsPreviewTheOriginalAndNeverBakeBlankBorders',async()=>{
+ const s=await setup(),before=s.effects.mock.calls.length;
+ await s.plugin.changeAllImages({shadow:6,bakeEffects:true},'all');
+ expect(s.effects).toHaveBeenCalledTimes(before);expect(s.plugin.state().geometry?.get('img-0')).toBeUndefined();
+ const img=s.paper().querySelector('img')!;expect(img.style.boxShadow).toBe('0 1px 8px rgba(0,0,0,0.1)');expect(img.style.maxWidth).toBe('100%');
+ await s.plugin.changeAllImages({shadowBlur:4},'default');expect(s.effects).toHaveBeenCalledTimes(before);expect(s.paper().querySelector('img')!.style.boxShadow).toBe('0 1px 4px rgba(0,0,0,0.1)');
 });

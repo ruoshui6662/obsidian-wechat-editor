@@ -3,6 +3,7 @@ import {realpath} from 'node:fs/promises';
 import {join,posix,relative,isAbsolute} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {parseArticle} from '../../core/src/parse';
+import {needsImageBake} from '../../core/src/image-appearance';
 import {imageReadingWidth} from '../../core/src/image-geometry';
 import {renderArticle} from '../../core/src/render';
 import {normalizeLayout,mergeImageStyles,mergeImageStyleOverrides} from '../../core/src/styles';
@@ -98,9 +99,9 @@ export default class WechatLayoutPlugin extends Plugin{
   const overrides=this.effectiveOverrides(article),layout=this.effectiveLayout(),geometry=new Map<string,ImageGeometry>();
   const plans=article.images.map(ref=>{
    const block=article.blocks.find(b=>b.key===ref.blockKey),style=mergeImageStyles(overrides['*']?.image,block?.blockId?overrides[block.blockId]?.image:undefined);
-   const bake=style.bakeEffects&&ref.mode==='block';
+   const bake=needsImageBake(style)&&ref.mode==='block';
    const readingWidth=imageReadingWidth(article,ref,layout,style,overrides);
-   const key=JSON.stringify([note.path,!!ref.literalPath,ref.source,bake?{readingWidth,alignment:style.alignment,widthPercent:style.widthPercent,width:ref.width,radius:style.radius,shadow:style.shadow,borderWidth:style.borderWidth,borderColor:style.borderColor,background:style.background,backgroundMode:style.backgroundMode,shadowOpacity:style.shadowOpacity,shadowBlur:style.shadowBlur,shadowOffsetY:style.shadowOffsetY}:null]);
+   const key=JSON.stringify([note.path,!!ref.literalPath,ref.source,bake?{readingWidth,alignment:style.alignment,widthPercent:style.widthPercent,width:ref.width,radius:style.radius,borderWidth:style.borderWidth,borderColor:style.borderColor,background:style.background,backgroundMode:style.backgroundMode}:null]);
    const url=this.previewAssets.ready(key);if(url){sources.set(ref.occurrenceId,url);const g=this.previewAssets.geometry(key);if(g)geometry.set(ref.occurrenceId,g);}
    return{ref,style,bake,key};
   });

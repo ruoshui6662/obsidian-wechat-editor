@@ -43,12 +43,12 @@ export class ImageInspector {
   const effect=this.group('更多样式',true);effect.parentElement!.insertBefore(presetRow,effect);
   this.numeric(effect,'圆角 px','radius',0,0,64,true);this.numeric(effect,'阴影强度','shadow',0,0,30,true);this.numeric(effect,'边框 px','borderWidth',0,0,12);effect.querySelector('[data-setting=borderWidth]')!.closest('.wx-field')!.classList.add('wx-single-field');
   this.numeric(effect,'明暗 %','shadowOpacity',18,0,50);this.numeric(effect,'柔和度 px','shadowBlur',12,0,80);this.numeric(effect,'下移 px','shadowOffsetY',3,0,24,false,.5);
-  selectControl(effect,'图片背景','backgroundMode','solid',[['preserve','保留透明'],['solid','纯色底板']],value=>this.commit({backgroundMode:value as ImageStyle['backgroundMode']},true));
+  selectControl(effect,'图片背景','backgroundMode','preserve',[['preserve','保留透明'],['solid','纯色底板']],value=>this.commit({backgroundMode:value as ImageStyle['backgroundMode']},true));
   for(const [key,label]of [['borderColor','边框颜色'],['background','背景颜色']]as const){const row=document.createElement('label');row.className='wx-field';const text=document.createElement('span');text.textContent=label;const input=document.createElement('input');input.type='color';input.dataset.setting=key;input.setAttribute('aria-label',label);input.addEventListener('input',()=>this.commit({[key]:input.value,...(key==='background'?{backgroundMode:'solid' as const}:{})},true));row.append(text,input);effect.append(row);}
   for(const [key,label]of [['marginBefore','上方留白 px'],['marginAfter','下方留白 px']]as const)this.numeric(layout,label,key,DEFAULT_IMAGE[key],0,64);
 
-  const row=document.createElement('label');row.className='wx-image-toggle';const bake=document.createElement('input');bake.type='checkbox';bake.dataset.setting='bakeEffects';bake.disabled=gif;bake.addEventListener('change',()=>this.commit({bakeEffects:bake.checked}));row.append(document.createTextNode('复制时保留静态图片效果'),bake);effect.parentElement!.append(row);
-  const hint=document.createElement('p');hint.dataset.imageHint='';hint.className='wx-image-hint';hint.textContent=gif?'GIF 保留动画，不合成静态图；圆角和阴影在微信中的效果需检查。':'将圆角、边框、底色与阴影合成到上传副本，原文件保留。';effect.parentElement!.append(hint);
+  const row=document.createElement('label');row.className='wx-image-toggle';const bake=document.createElement('input');bake.type='checkbox';bake.dataset.setting='bakeEffects';bake.disabled=gif;bake.addEventListener('change',()=>this.commit({bakeEffects:bake.checked}));row.append(document.createTextNode('固定圆角、边框与底色'),bake);effect.parentElement!.append(row);
+  const hint=document.createElement('p');hint.dataset.imageHint='';hint.className='wx-image-hint';hint.textContent=gif?'GIF 保留动画；阴影沿图片边缘显示。':'圆角、边框与底色生成副本；阴影沿原图边缘显示，不增加外部留白。';effect.parentElement!.append(hint);
   const status=document.createElement('p');status.dataset.imageStatus='';status.className='wx-image-status';status.setAttribute('aria-live','polite');this.el.append(status);
   const retry=document.createElement('button');retry.type='button';retry.dataset.action='retry-image';retry.textContent='重试保存';retry.hidden=true;retry.addEventListener('click',()=>this.retrySave());this.el.append(retry);
   if(options.apply){const apply=document.createElement('button');apply.type='button';apply.dataset.action='apply-images';apply.className='wx-wide-secondary';apply.textContent='应用到全文…';apply.addEventListener('click',()=>this.openApplyMenu(apply));this.el.append(apply);}
@@ -73,12 +73,12 @@ export class ImageInspector {
   this.el.querySelector('[data-setting=imageWidth]')!.closest<HTMLElement>('.wx-field')!.hidden=fill;
   const custom=this.el.querySelector<HTMLInputElement>('[data-setting=widthPercent]')!;custom.closest<HTMLElement>('.wx-field')!.hidden=fill||(custom!==custom.ownerDocument.activeElement&&(!this.style.widthPercent||[40,65,100].includes(this.style.widthPercent)));
   const shadow=describeShadow(this.style);
-  const background=this.el.querySelector<HTMLInputElement>('[data-setting=background]')!;background.closest<HTMLElement>('.wx-field')!.hidden=this.style.backgroundMode==='preserve';
+  const background=this.el.querySelector<HTMLInputElement>('[data-setting=background]')!;background.closest<HTMLElement>('.wx-field')!.hidden=this.style.backgroundMode!=='solid';
   for(const input of this.el.querySelectorAll<HTMLInputElement|HTMLSelectElement>('[data-setting]')){
    const key=input.dataset.setting!,widthControl=key==='imageWidth'||key==='widthPercent';if(widthControl)input.disabled=fill;if(input===input.ownerDocument.activeElement&&!(fill&&widthControl))continue;
    if(key==='imageWidth')input.value=fill?'100':this.style.widthPercent?([40,65,100].includes(this.style.widthPercent)?String(this.style.widthPercent):'custom'):'auto';
    else if(key==='widthPercent'&&fill)input.value='100';
-   else if(key==='backgroundMode')input.value=this.style.backgroundMode??'solid';
+   else if(key==='backgroundMode')input.value=this.style.backgroundMode??'preserve';
    else if(key==='shadowOpacity')input.value=String(shadow.opacity);
    else if(key==='shadowBlur')input.value=String(shadow.blur);
    else if(key==='shadowOffsetY')input.value=String(shadow.offsetY);
@@ -94,7 +94,7 @@ export class ImageInspector {
  }
  private commit(patch:Partial<ImageStyle>,decoration=false){
   if(this.disposed)return;if(Object.hasOwn(patch,'shadow')&&!Object.hasOwn(patch,'shadowBlur'))patch={...patch,...softShadow(patch.shadow!)};const next=normalizeImage({...this.style,...patch});
-  if(decoration)patch.bakeEffects=!this.gif&&(next.radius>0||next.shadow>0||next.borderWidth>0||next.backgroundMode==='solid');
+  if(decoration&&['radius','borderWidth','borderColor','background','backgroundMode'].some(key=>Object.hasOwn(patch,key)))patch.bakeEffects=!this.gif&&(next.radius>0||next.borderWidth>0||next.backgroundMode==='solid');
   if(this.gif)patch.bakeEffects=false;
   this.style=normalizeImage({...this.style,...patch});this.pending={...this.pending,...patch};this.failed=false;this.syncControls();void this.flush();
  }

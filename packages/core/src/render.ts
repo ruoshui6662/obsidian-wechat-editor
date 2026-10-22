@@ -24,10 +24,10 @@ export function renderArticle(article:Article,layout:LayoutSettings,sources:Read
   }
   const fill=s.alignment==='justify';
   const width=fill?'100%':s.widthPercent?`${s.widthPercent}%`:ref.width?`${ref.width}px`:'auto';
-  const sh=describeShadow(s),shadow=s.shadow?(s.backgroundMode==='preserve'?`filter:drop-shadow(0 ${sh.offsetY}px ${sh.blur/2}px rgba(0,0,0,${sh.opacity/100}));`:`box-shadow:0 ${sh.offsetY}px ${sh.blur}px rgba(0,0,0,${sh.opacity/100});`):'';
-  const visual=s.bakeEffects&&!/\.gif(?:[?#].*)?$/i.test(ref.source)?'':`border-radius:${s.radius}px;border:${s.borderWidth}px solid ${s.borderColor};${s.backgroundMode?`background-color:${s.backgroundMode==='solid'?s.background:'transparent'};`:''}${shadow}`;
-  const baked=geometry.get(ref.occurrenceId);
-  const image=baked?`<span data-wx-photo="" style="display:inline-block;vertical-align:middle;max-width:100%;width:${width==='auto'?baked.naturalWidth+'px':width};"><img src="${escape(src)}" alt="${escape(ref.alt)}" data-wx-image="${ref.occurrenceId}" style="display:block;max-width:none;width:${(1+2*baked.paddingRatio)*100}%;height:auto;margin:${-baked.paddingRatio*100}%;" /></span>`:`<img src="${escape(src)}" alt="${escape(ref.alt)}" data-wx-image="${ref.occurrenceId}" style="display:${fill?'block':'inline-block'};vertical-align:middle;max-width:100%;width:${width};height:auto;box-sizing:border-box;${visual}" />`;
+  const sh=describeShadow(s),shadow=s.shadow?`box-shadow:0 ${sh.offsetY}px ${sh.blur}px rgba(0,0,0,${sh.opacity/100});`:'';
+  const baked=s.bakeEffects&&!/\.gif(?:[?#].*)?$/i.test(ref.source);
+  const visual=`border-radius:${s.radius}px;${baked?'border:0;':`border:${s.borderWidth}px solid ${s.borderColor};${s.backgroundMode==='solid'?`background-color:${s.background};`:''}`}${shadow}`;
+  const image=`<img src="${escape(src)}" alt="${escape(ref.alt)}" data-wx-image="${ref.occurrenceId}" style="display:${fill?'block':'inline-block'};vertical-align:middle;max-width:100%;width:${width};height:auto;box-sizing:border-box;${visual}" />`;
   return `<span style="display:block;text-align:${fill?'left':s.alignment};margin-top:${spacing.images.get(ref.occurrenceId)?.before??s.marginBefore}px;margin-bottom:${spacing.images.get(ref.occurrenceId)?.after??s.marginAfter}px;margin-left:${edges.left-parentInset.left}px;margin-right:${edges.right-parentInset.right}px;text-indent:0;">${image}</span>`;
  };
  md.renderer.rules.image=(tokens,i)=>{const ref=refs.get(tokens[i].meta?.ref?.occurrenceId);if(ref)return imageRule(ref);diagnostics.push({code:'untracked-image',severity:'error',message:'存在未识别的图片，请刷新预览后再复制。'});return '<span style="color:#a33232;">[未识别的图片]</span>';};

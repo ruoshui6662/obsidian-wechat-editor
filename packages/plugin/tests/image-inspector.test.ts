@@ -21,7 +21,7 @@ it('imageSelectionOpensAnInspectorForTheSelectedOccurrence',()=>{
 });
 it('imageIndentAndShadowOnlyAffectTheSelectedOccurrence',async()=>{
  const s=setup();s.select();s.set('marginLeft','16');s.set('marginRight','24');s.set('shadow','10');s.set('widthPercent','55');
- await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({leftInset:16,rightInset:24,shadow:10,bakeEffects:true,widthPercent:55}));
+ await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({leftInset:16,rightInset:24,shadow:10,widthPercent:55}));
  expect(s.root.querySelector<HTMLSelectElement>('[data-setting=imageWidth]')!.value).toBe('custom');
  expect(s.state.overrides.other).toBeUndefined();expect(s.root.querySelector('[data-image-status]')?.textContent).toContain('已保存');s.p.destroy();
 });

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { posix, relative, isAbsolute } from 'node:path';
 import type { Article, ImageRef, ImageStyle, PreparedAsset, ImageGeometry } from '../../core/src/types';
 import { LayoutError } from '../../core/src/types';
+import {needsImageBake} from '../../core/src/image-appearance';
 import { normalizeImage } from '../../core/src/styles';
 export interface VaultPort { listFiles():string[]; readBinary(path:string):Promise<Uint8Array>; rootRealPath?:string; realPath?(path:string):Promise<string> }
 export type AssetReader=(ref:ImageRef)=>Promise<{bytes:Uint8Array;filename:string}>;
@@ -53,7 +54,7 @@ export async function prepareAssets(article:Article,read:AssetReader,styles:Read
    if(!originals.has(sourceKey))originals.set(sourceKey,read(ref));
    let {bytes,filename}=await wait(originals.get(sourceKey)!);check();const info=inspectImage(bytes);let mime=info.mime;let geometry:ImageGeometry|undefined;
    const style=normalizeImage(styles.get(ref.occurrenceId));
-   if(style.bakeEffects&&ref.mode==='block'&&mime!=='image/gif'){const output=await wait(effects(bytes,mime,style,readingWidth?.(ref,info.width)));check();geometry=output.geometry;bytes=output.bytes;mime=output.mime;inspectImage(bytes);filename=filename.replace(/\.[^.]*$/,'')+'.png';}
+   if(needsImageBake(style)&&ref.mode==='block'&&mime!=='image/gif'){const output=await wait(effects(bytes,mime,style,readingWidth?.(ref,info.width)));check();geometry=output.geometry;bytes=output.bytes;mime=output.mime;inspectImage(bytes);filename=filename.replace(/\.[^.]*$/,'')+'.png';}
    const key=digest(bytes);const existing=result.get(key);
    if(existing)existing.occurrenceIds.push(ref.occurrenceId);else result.set(key,{key,bytes,mime,filename,...(geometry?{geometry}:{}),occurrenceIds:[ref.occurrenceId]});
   }catch(e){if(e instanceof LayoutError){if(!e.occurrenceIds.length)e.occurrenceIds=[ref.occurrenceId];throw e;}throw new LayoutError('image-read',`图片处理失败：${ref.source}`,[ref.occurrenceId]);}

@@ -38,7 +38,7 @@ describe('Vault assets',()=>{
   const a=parseArticle('![[a.png]]','稿.md');const bytes=await image();
   const read=async()=>({bytes,filename:'a.png'});const effect=async()=>({bytes:new Uint8Array([...bytes,0]),mime:'image/png'});
   const one=await prepareAssets(a,read,new Map(),effect);
-  const two=await prepareAssets(a,read,new Map([['img-0',{...DEFAULT_IMAGE,bakeEffects:true,shadow:8}]]),effect);
+  const two=await prepareAssets(a,read,new Map([['img-0',{...DEFAULT_IMAGE,bakeEffects:true,radius:4,shadow:8}]]),effect);
   expect(one[0].key).not.toBe(two[0].key);
  });
  it('rejectsOversizedDecodedImages',()=>{

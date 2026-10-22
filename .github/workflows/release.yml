@@ -1,4 +1,4 @@
-name: Verify and publish v0.0.1
+name: Verify and publish
 on:
   push:
     branches: [main]

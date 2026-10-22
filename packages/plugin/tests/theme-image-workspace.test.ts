@@ -36,6 +36,6 @@ it('builtinSelectionCanKeepHeaderFooterAssociationWithoutShowingTheOldSchemeAsSe
 });
 it('commonImageLayoutsFollowTheExistingGlobalAndSingleImageScope',async()=>{
  const all=vi.fn().mockResolvedValue(true),local=vi.fn().mockResolvedValue(undefined),s=setup({changeAllImages:all,changeBlock:local});
- s.root.querySelector<HTMLButtonElement>('[data-image-layout=follow-text-shadow]')!.click();await vi.waitFor(()=>expect(all).toHaveBeenCalledWith(expect.objectContaining({shadow:6,bakeEffects:true}),'default'));expect(local).not.toHaveBeenCalled();
+ s.root.querySelector<HTMLButtonElement>('[data-image-layout=follow-text-shadow]')!.click();await vi.waitFor(()=>expect(all).toHaveBeenCalledWith(expect.objectContaining({shadow:6}),'default'));expect(local).not.toHaveBeenCalled();
  await vi.waitFor(()=>expect(s.root.querySelector('[data-image-status]')!.textContent).toContain('已保存'));s.p.selectImage('img-1');s.root.querySelector<HTMLButtonElement>('[data-image-layout=follow-text-plain]')!.click();await vi.waitFor(()=>expect(local).toHaveBeenCalledWith('block-2',{image:expect.objectContaining({shadow:0})}));expect(all).toHaveBeenCalledTimes(1);
 });
