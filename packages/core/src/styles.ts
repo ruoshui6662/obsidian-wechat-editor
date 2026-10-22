@@ -9,7 +9,7 @@ const FONT_FAMILIES:Record<LayoutSettings['fontFamily'],string>={
 };
 export {DEFAULT_LAYOUT} from './defaults';
 export const LAYOUT_RANGES={headingBefore:[0,64],headingAfter:[0,64],h3FontSize:[10,50],fontSize:[10,50],lineHeight:[1,3],letterSpacing:[0,3],paragraphBefore:[0,48],paragraphAfter:[0,48],firstLineIndent:[0,4],sidePadding:[0,96]} as const;
-export const DEFAULT_IMAGE:ImageStyle={alignment:'left',marginBefore:24,marginAfter:24,marginLeft:0,marginRight:0,radius:0,borderWidth:0,borderColor:'#dddddd',shadow:0,background:'#ffffff',bakeEffects:false};
+export const DEFAULT_IMAGE:ImageStyle={alignment:'left',marginBefore:28,marginAfter:28,marginLeft:0,marginRight:0,radius:0,borderWidth:0,borderColor:'#dddddd',shadow:0,background:'#ffffff',bakeEffects:false};
 export const clamp=(v:unknown,min:number,max:number,fallback:number)=>typeof v==='number'&&Number.isFinite(v)?Math.min(max,Math.max(min,v)):fallback;
 export const color=(v:unknown,fallback:string)=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v:fallback;
 export function normalizeLayout(input:Partial<LayoutSettings>={}):LayoutSettings{

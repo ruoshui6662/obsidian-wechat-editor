@@ -2,9 +2,9 @@
 
 在 Obsidian 写作、调整图文排版，通过配套浏览器助手，把包含图片的文章复制到微信公众号后台。
 
-**当前版本：v0.0.2** · 桌面版 Obsidian 1.8.0+ · Chrome / Edge 等 Chromium 116+ 浏览器
+**当前版本：v0.0.3** · 桌面版 Obsidian 1.8.0+ · Chrome / Edge 等 Chromium 116+ 浏览器
 
-[下载安装包](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.2) · [完整安装教程](docs/INSTALL.md) · [浏览器配置](docs/BROWSER.md) · [使用说明](docs/USAGE.md) · [常见问题](docs/TROUBLESHOOTING.md)
+[下载安装包](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.3) · [完整安装教程](docs/INSTALL.md) · [浏览器配置](docs/BROWSER.md) · [使用说明](docs/USAGE.md) · [常见问题](docs/TROUBLESHOOTING.md)
 
 ## 可以做什么
 
@@ -20,10 +20,10 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [wechat-layout-v0.0.2.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.2/wechat-layout-v0.0.2.zip) | 安装到你的 Obsidian 笔记库 |
-| [wechat-layout-extension-v0.0.2.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.2/wechat-layout-extension-v0.0.2.zip) | 在浏览器加载图片助手，图文复制需要它 |
-| [test-vault-v0.0.2.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.2/test-vault-v0.0.2.zip) | 独立示例笔记库，含插件与测试图片 |
-| [SHA256SUMS.txt](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.2/SHA256SUMS.txt) | 安装包完整性校验 |
+| [wechat-layout-v0.0.3.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/wechat-layout-v0.0.3.zip) | 安装到你的 Obsidian 笔记库 |
+| [wechat-layout-extension-v0.0.3.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/wechat-layout-extension-v0.0.3.zip) | 在浏览器加载图片助手，图文复制需要它 |
+| [test-vault-v0.0.3.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/test-vault-v0.0.3.zip) | 独立示例笔记库，含插件与测试图片 |
+| [SHA256SUMS.txt](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/SHA256SUMS.txt) | 安装包完整性校验 |
 
 Release 尚在生成或下载不可用时，可从仓库 [downloads 目录](downloads/)下载相同的三个 ZIP（打开文件后点 **Download raw file**）。GitHub 的 **Code → Download ZIP** 是源代码，需要构建后才能安装。
 
@@ -39,9 +39,9 @@ Release 尚在生成或下载不可用时，可从仓库 [downloads 目录](down
 
 ## 常用默认值
 
-正文默认16px、行距1.8、两侧留白16px；正文段落与图片相邻空白默认24px。三级标题默认18px，可选蓝色分段装饰。图片两端对齐默认沿正文边线，手动左右留白表示相对当前内容区域的实际空白，不是向外延伸量。
+正文默认16px、行距1.8、两侧留白16px；正文段落与图片相邻空白默认28px。三级标题默认18px，可选蓝色分段装饰。图片两端对齐默认沿正文边线，手动左右留白表示相对当前内容区域的实际空白，不是向外延伸量。
 
-同段自动折行属于行距，不是24px段距；标题前后默认28／12px。[排版规则与作用范围](docs/USAGE.md)
+同段自动折行属于行距，不是28px段距；标题前后默认28／12px。[排版规则与作用范围](docs/USAGE.md)
 
 ## 浏览器与数据
 

@@ -10,8 +10,8 @@ function setup(){const root=document.createElement('div');document.body.append(r
 it.each([
  ['fontSize',[10,11,12,13,14,15,16,17,18,19,20,24,28,32,36]],
  ['sidePadding',[0,8,16,32,48]],
- ['paragraphBefore',[0,8,16,24,32,40,48]],
- ['paragraphAfter',[0,8,16,24,32,40,48]],
+ ['paragraphBefore',[0,8,16,24,28,32,40,48]],
+ ['paragraphAfter',[0,8,16,24,28,32,40,48]],
  ['letterSpacing',[0,.5,1,2]],
  ['lineHeight',[1,1.5,1.75,2,2.5,3]],
  ['firstLineIndent',[0,2]],

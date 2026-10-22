@@ -45,7 +45,7 @@ describe('export rendering',()=>{
  it('defaultBodyMatchesSpec',()=>{
   const el=body(renderArticle(parseArticle('你好 **重点**','稿.md'),DEFAULT_LAYOUT,new Map()).html);
   const p=el.querySelector('p')!;
-  expect(p.style.fontSize).toBe('16px');expect(p.style.lineHeight).toBe('1.8');expect(p.style.color).toBe('rgb(51, 51, 51)');expect(p.style.marginBottom).toBe('24px');
+  expect(p.style.fontSize).toBe('16px');expect(p.style.lineHeight).toBe('1.8');expect(p.style.color).toBe('rgb(51, 51, 51)');expect(p.style.marginBottom).toBe('28px');
   expect(p.style.marginLeft).toBe('8px');expect(p.style.marginRight).toBe('8px');expect(el.querySelector('strong')!.textContent).toBe('重点');
  });
  it('sameSourceDifferentWidth',()=>{

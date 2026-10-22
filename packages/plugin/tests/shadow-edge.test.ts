@@ -23,7 +23,7 @@ it('bakedAndOriginalPhotosBothUseAnEdgeShadowWithoutNegativeSizeCompensation',()
   const style=normalizeImage({alignment:'justify',leftInset:16,rightInset:16,shadow:6,...softShadow(6),radius:4,bakeEffects:bake});
   const root=document.createElement('div');root.innerHTML=renderArticle(article,{...DEFAULT_LAYOUT,sidePadding:16},sources,{pic:{image:style}},bake?new Map([['img-0',{naturalWidth:1200,paddingRatio:0}]]):new Map()).html;
   const img=root.querySelector('img')!;expect(img.style.boxShadow).toBe('0 1px 8px rgba(0,0,0,0.1)');expect(img.style.width).toBe('100%');expect(img.style.maxWidth).toBe('100%');expect(img.style.margin).toBe('');expect(img.style.padding).toBe('');expect(root.querySelector('[data-wx-photo]')).toBeNull();
-  expect(root.querySelectorAll('p')).toHaveLength(3);expect(root.querySelectorAll('p')[1].style.marginTop).toBe('24px');expect(root.querySelectorAll('p')[2].style.marginTop).toBe('24px');
+  expect(root.querySelectorAll('p')).toHaveLength(3);expect(root.querySelectorAll('p')[1].style.marginTop).toBe('28px');expect(root.querySelectorAll('p')[2].style.marginTop).toBe('28px');
   expect(root.querySelectorAll('p')[2].textContent).toBe('下一段');
  }
 });

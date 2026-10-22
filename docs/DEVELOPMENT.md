@@ -1,4 +1,4 @@
-# v0.0.2 开发与构建
+# v0.0.3 开发与构建
 
 需要 Node.js 22+、pnpm 10.11.0、系统 zip/unzip。运行时用户无需安装这些工具。源码按 core（解析与内联渲染）、plugin（Obsidian工作区／本机桥接）、extension（浏览器连接／公众号上传）分层。
 
@@ -25,7 +25,7 @@ pnpm package
 
 ## 版本与公开发布
 
-用户可见版本、标签与安装包名称为 **v0.0.2**。Obsidian与Chrome清单以及package.json按各自格式要求存为 `0.0.2`，不带v。修改版本需同步三个清单与versions.json，再构建打包。
+用户可见版本、标签与安装包名称为 **v0.0.3**。Obsidian与Chrome清单以及package.json按各自格式要求存为 `0.0.3`，不带v。修改版本需同步三个清单与versions.json，再构建打包。
 
 仓库 `downloads/` 保存已验证的首发安装包作为下载备用；不含配对令牌、data.json或个人笔记。GitHub Actions对main上的发布改动安装依赖、测试、类型检查和构建，通过后校验已提交安装包并创建Release，附两个组件与测试库ZIP及Obsidian三文件。若同名Release已存在，不自动覆盖它。
 

@@ -116,8 +116,8 @@ export class LayoutPanel {
    ['fontSize','字号',[10,11,12,13,14,15,16,17,18,19,20,24,28,32,36],1,'px'],
    ['lineHeight','行距',[1,1.5,1.75,2,2.5,3],.05,'倍'],
    ['letterSpacing','字距',[0,.5,1,2],.1,'px'],
-   ['paragraphBefore','段前距',[0,8,16,24,32,40,48],1,'px'],
-   ['paragraphAfter','段后距',[0,8,16,24,32,40,48],1,'px'],
+   ['paragraphBefore','段前距',[0,8,16,24,28,32,40,48],1,'px'],
+   ['paragraphAfter','段后距',[0,8,16,24,28,32,40,48],1,'px'],
    ['sidePadding','两侧留白',[0,8,16,32,48],1,'px'],
    ['firstLineIndent','首行缩进',[0,2],.5,'字'],
   ]as const){const [min,max]=LAYOUT_RANGES[key];this.layoutNumbers.set(key,new PresetNumberControl(['letterSpacing','firstLineIndent'].includes(key)?advanced:p,label,key,Number(DEFAULT_LAYOUT[key]),presets,min,max,value=>this.host.changeLayout({[key]:value}),{step,unit,presentation:'select'}));}
