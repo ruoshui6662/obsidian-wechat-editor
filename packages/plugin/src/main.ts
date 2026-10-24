@@ -16,7 +16,8 @@ import {writeRichClipboard,writeTextClipboard} from './clipboard';
 import {loadSettings,type PluginSettings,type NoteSettings} from './settings';
 import {LayoutPanel,type PanelState,type PanelHost} from './view';
 import {ensureSelectionBlockId,resolveOverrides,migrateNotePath} from './local-styles';
-import {applyTemplate} from './templates';
+import {applyTemplate,resolveArticleContent} from './templates';
+import {ArticleContentModal} from './article-content-modal';
 import {TemplateModal} from './template-modal';
 import {ConfirmTemplateDelete} from './confirm-delete';
 import {ConfirmImageUnify} from './confirm-image-unify';
@@ -122,7 +123,8 @@ export default class WechatLayoutPlugin extends Plugin{
    }
   }catch(error){if(current()){diagnostics.push(error instanceof Error?error.message:'图片无法预览。');publish();}}
  }
- expandArticle(article:Article):Article{const template=this.settings.templates.find(t=>t.id===this.noteSettings().templateId);return template?applyTemplate(article,template):article;}
+ private articleContent(){return resolveArticleContent(this.noteSettings(),this.settings.templates);}
+ expandArticle(article:Article):Article{const content=this.articleContent();return content.headerMarkdown||content.footerMarkdown?applyTemplate(article,content):article;}
  private effectiveLayout(){const template=this.settings.templates.find(t=>t.id===this.noteSettings().templateId);return normalizeLayout({...this.settings.layout,...template?.layout,...this.noteSettings().layout});}
  private effectiveOverrides(article=this.article):BlockOverrides{const note=this.noteSettings(),template=this.settings.templates.find(t=>t.id===note.templateId),base=articleTheme(this.effectiveLayout().themeId)?.image;const raw={...note.overrides,'*':{...note.overrides['*'],image:mergeImageStyles(base,template?.imageDefault,note.overrides['*']?.image)}};return article?resolveOverrides(article,raw).active:raw;}
  imageStyles(snapshot:Snapshot):Map<string,ImageStyle>{
@@ -145,7 +147,7 @@ export default class WechatLayoutPlugin extends Plugin{
   try{
    const editor=this.getEditor(),current=()=>!this.disposed&&this.activeNote?.path===sourcePath&&(!editor||editor.getValue()===source);
    const directory=posix.join(posix.dirname(sourcePath),'附件',posix.basename(sourcePath,'.md'),'网络图片-'+randomUUID().slice(0,8));
-   const template=this.settings.templates.find(t=>t.id===this.noteSettings().templateId),numberOffset=template?parseArticle(template.headerMarkdown,sourcePath).images.length:0;
+   const numberOffset=parseArticle(this.articleContent().headerMarkdown,sourcePath).images.length;
    const result=await localizeRemoteImages(source,sourcePath,{directory,numberOffset,signal,progress:signal?(done,total)=>this.copyEvent({type:'downloading',done,total}):undefined,isCurrent:current,download:async url=>{
     const response=await requestUrl({url,throw:false});if(response.status<200||response.status>=300)throw new LayoutError('image-download','网络图片读取失败，请保存到本地后替换。');return new Uint8Array(response.arrayBuffer);
    },save:async(path,bytes)=>{
@@ -203,10 +205,10 @@ export default class WechatLayoutPlugin extends Plugin{
   if(result.edit){const editor=this.getEditor();if(!editor)throw new LayoutError('editor-required','请先打开当前笔记的编辑器，再调整局部样式。');editor.replaceRange(result.edit.text,editor.offsetToPos(result.edit.from),editor.offsetToPos(result.edit.to),'wechat-layout');}
   const note=this.noteSettings();const current=note.overrides[result.blockId]||{};note.overrides[result.blockId]={text:{...current.text,...patch.text},image:mergeImageStyleOverrides(current.image,patch.image)};this.invalidate();try{await this.saveLayout();}finally{await this.refresh();}return result.blockId;
  }
- private async appearanceChange(change:(note:NoteSettings)=>void){
+ private async appearanceChange(change:(note:NoteSettings)=>void,refresh=true){
   if(!this.activeNote||this.article?.sourcePath!==this.activeNote.path)throw Error('请先打开当前笔记。');
   const path=this.activeNote.path,note=this.noteSettings(),before=structuredClone(note);change(note);
-  this.appearanceUndo.set(path,{before,after:JSON.stringify(note)});this.invalidate();await this.saveLayout();await this.refresh();
+  this.appearanceUndo.set(path,{before,after:JSON.stringify(note)});this.invalidate();await this.saveLayout();if(refresh)await this.refresh();
  }
  async undoAppearance(){
   const path=this.activeNote?.path;if(!path)return;const entry=this.appearanceUndo.get(path);
@@ -238,17 +240,38 @@ export default class WechatLayoutPlugin extends Plugin{
   const block=this.article?.blocks.find(b=>b.key===key);if(!block?.blockId)return;const id=block.blockId;
   await this.appearanceChange(note=>{if(note.overrides[id]){delete note.overrides[id].image;if(!Object.keys(note.overrides[id].text??{}).length)delete note.overrides[id];}});
  }
+ editArticleContent(part:'header'|'footer'){
+  const path=this.activeNote?.path;if(!path||this.article?.sourcePath!==path)return;
+  const content=this.articleContent(),before=JSON.stringify(content),key=part==='header'?'headerMarkdown':'footerMarkdown';
+  const modal=new ArticleContentModal(this.app,part,content[key],async value=>{
+   if(this.disposed||this.activeNote?.path!==path)throw Error('文章已切换，请回到原文章重新编辑。');
+   if(JSON.stringify(this.articleContent())!==before)throw Error('文章开头或结尾已变化，请关闭后重新编辑。');
+   const note=this.noteSettings(),original=note.content,attempt={...content,[key]:value},previousUndo=this.appearanceUndo.get(path);
+   const pending=this.appearanceChange(target=>{target.content=attempt;},false),ownUndo=this.appearanceUndo.get(path);
+   try{await pending;}catch(error){
+    // Keep the draft in the modal and roll back only this failed content write.
+    // Independent changes and undo entries must never be replaced by a retry.
+    if(this.settings.notes[path]===note&&JSON.stringify(note.content)===JSON.stringify(attempt)){
+     if(original)note.content=original;else delete note.content;
+     if(this.appearanceUndo.get(path)===ownUndo){if(previousUndo)this.appearanceUndo.set(path,previousUndo);else this.appearanceUndo.delete(path);}
+     this.invalidate();this.pushState();
+    }
+    throw error;
+   }
+   try{await this.refresh();}catch{if(this.activeNote?.path===path){this.previewDiagnostics=['内容已保存，预览刷新失败，请点击刷新。'];this.pushState();}}
+  });this.register(()=>modal.close());modal.open();
+ }
  editTemplate(createNew=false){
   const current=this.settings.templates.find(t=>t.id===this.noteSettings().templateId);
-  const template={id:createNew||!current?randomUUID():current.id,name:createNew?'我的排版方案':current?.name||'我的排版方案',layout:this.effectiveLayout(),imageDefault:{...this.effectiveOverrides()['*']?.image},headerMarkdown:current?.headerMarkdown||'',footerMarkdown:current?.footerMarkdown||''};
-  const target=this.noteSettings();const modal=new TemplateModal(this.app,template,async value=>{if(this.disposed)throw Error('插件已关闭。');const index=this.settings.templates.findIndex(t=>t.id===value.id);if(index>=0)this.settings.templates[index]=value;else this.settings.templates.push(value);target.templateId=value.id;target.layout={};if(target.overrides['*'])delete target.overrides['*'].image;this.invalidate();await this.saveLayout();await this.refresh();});this.register(()=>modal.close());modal.open();
+  const template={id:createNew||!current?randomUUID():current.id,name:createNew?'我的排版方案':current?.name||'我的排版方案',layout:this.effectiveLayout(),imageDefault:{...this.effectiveOverrides()['*']?.image},headerMarkdown:createNew?'':current?.headerMarkdown||'',footerMarkdown:createNew?'':current?.footerMarkdown||''};
+  const target=this.noteSettings(),content=this.articleContent();const modal=new TemplateModal(this.app,template,async value=>{if(this.disposed)throw Error('插件已关闭。');const index=this.settings.templates.findIndex(t=>t.id===value.id);if(index>=0)this.settings.templates[index]=value;else this.settings.templates.push(value);target.content??=content;target.templateId=value.id;target.layout={};if(target.overrides['*'])delete target.overrides['*'].image;this.invalidate();await this.saveLayout();await this.refresh();});this.register(()=>modal.close());modal.open();
  }
  confirmDeleteTemplate(id:string){
   const template=this.settings.templates.find(t=>t.id===id);if(!template||this.disposed)return;
   const count=Object.values(this.settings.notes).filter(note=>note.templateId===id).length;
   const modal=new ConfirmTemplateDelete(this.app,template.name,count,()=>{
    if(this.disposed||!this.settings.templates.some(t=>t.id===id))return;
-   this.settings.templates=this.settings.templates.filter(t=>t.id!==id);for(const note of Object.values(this.settings.notes))if(note.templateId===id)delete note.templateId;
+   this.settings.templates=this.settings.templates.filter(t=>t.id!==id);for(const note of Object.values(this.settings.notes))if(note.templateId===id){note.content??=resolveArticleContent(note,[template]);delete note.templateId;}
    this.invalidate();void this.saveLayout().catch(()=>{});void this.refresh();
   });this.register(()=>modal.close());modal.open();
  }
@@ -260,8 +283,8 @@ export default class WechatLayoutPlugin extends Plugin{
   }
   this.invalidate();void this.saveLayout().catch(()=>{});
  }
- host():PanelHost{return{retrySave:()=>{void this.saveLayout().then(()=>this.refresh()).catch(()=>{});},copy:()=>this.copy(),cancel:()=>this.cancelCopy(),getPairingInfo:()=>this.getPairingInfo(),copyPairing:text=>writeTextClipboard(text),changeLayout:patch=>this.changeTextLayout(patch),refresh:()=>void this.refresh({forceAssets:true}),resetPairing:()=>this.resetPairing(),changeBlock:(key,patch)=>this.changeBlock(key,patch),changeAllImages:(patch,mode)=>this.requestImageStyle(patch,mode),resetImageStyle:key=>this.resetImageStyle(key),applyArticleTheme:id=>this.applyArticleTheme(id),undoAppearance:()=>this.undoAppearance(),saveTemplate:()=>this.editTemplate(true),editTemplate:()=>this.editTemplate(),applyTemplate:id=>{this.noteSettings().templateId=id||undefined;this.noteSettings().layout={};if(this.noteSettings().overrides['*'])delete this.noteSettings().overrides['*'].image;this.invalidate();void this.saveLayout().catch(()=>{});void this.refresh();},deleteTemplate:id=>this.confirmDeleteTemplate(id)};}
- state():PanelState{return{themeOverride:!!this.noteSettings().layout?.themeId,canUndoAppearance:!!this.activeNote&&this.appearanceUndo.get(this.activeNote.path)?.after===JSON.stringify(this.noteSettings()),saving:this.pendingSaves>0,saveError:this.saveError,pluginVersion:this.manifest.version,article:this.article,layout:this.effectiveLayout(),overrides:this.effectiveOverrides(),sources:this.previewSources,geometry:this.previewGeometry,account:this.bridge?.getAccount()??null,bridgeConnected:this.bridge?.isConnected()??false,pairingReady:!!this.bridge?.getInfo().endpoint,templates:this.settings.templates,templateId:this.noteSettings().templateId,diagnostics:[...this.previewDiagnostics,...(this.article?resolveOverrides(this.article,this.noteSettings().overrides).diagnostics.map(d=>d.message):[])]};}
+ host():PanelHost{return{retrySave:()=>{void this.saveLayout().then(()=>this.refresh()).catch(()=>{});},copy:()=>this.copy(),cancel:()=>this.cancelCopy(),getPairingInfo:()=>this.getPairingInfo(),copyPairing:text=>writeTextClipboard(text),changeLayout:patch=>this.changeTextLayout(patch),refresh:()=>void this.refresh({forceAssets:true}),resetPairing:()=>this.resetPairing(),changeBlock:(key,patch)=>this.changeBlock(key,patch),changeAllImages:(patch,mode)=>this.requestImageStyle(patch,mode),resetImageStyle:key=>this.resetImageStyle(key),applyArticleTheme:id=>this.applyArticleTheme(id),undoAppearance:()=>this.undoAppearance(),saveTemplate:()=>this.editTemplate(true),editTemplate:()=>this.editTemplate(),editContent:part=>this.editArticleContent(part),applyTemplate:id=>{this.noteSettings().content??=resolveArticleContent(this.noteSettings(),this.settings.templates);this.noteSettings().templateId=id||undefined;this.noteSettings().layout={};if(this.noteSettings().overrides['*'])delete this.noteSettings().overrides['*'].image;this.invalidate();void this.saveLayout().catch(()=>{});void this.refresh();},deleteTemplate:id=>this.confirmDeleteTemplate(id)};}
+ state():PanelState{return{content:this.articleContent(),themeOverride:!!this.noteSettings().layout?.themeId,canUndoAppearance:!!this.activeNote&&this.appearanceUndo.get(this.activeNote.path)?.after===JSON.stringify(this.noteSettings()),saving:this.pendingSaves>0,saveError:this.saveError,pluginVersion:this.manifest.version,article:this.article,layout:this.effectiveLayout(),overrides:this.effectiveOverrides(),sources:this.previewSources,geometry:this.previewGeometry,account:this.bridge?.getAccount()??null,bridgeConnected:this.bridge?.isConnected()??false,pairingReady:!!this.bridge?.getInfo().endpoint,templates:this.settings.templates,templateId:this.noteSettings().templateId,diagnostics:[...this.previewDiagnostics,...(this.article?resolveOverrides(this.article,this.noteSettings().overrides).diagnostics.map(d=>d.message):[])]};}
  pushState(){if(this.disposed)return;const state=this.state();for(const view of this.views)view.panel?.setState(state);}
  attach(view:WechatLayoutView){if(this.disposed){view.panel?.destroy();return;}this.views.add(view);view.panel?.setState(this.state());void this.refresh();}
  detach(view:WechatLayoutView){this.views.delete(view);if(!this.views.size){this.refreshId++;this.releaseUrls();}}

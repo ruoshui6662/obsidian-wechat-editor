@@ -1,14 +1,14 @@
-# v0.0.3 安装与首次使用
+# v0.0.4 安装与首次使用
 
 需要安装 **Obsidian 插件 + 浏览器图片助手**。前者排版，后者上传图片；只装其中一个无法完成完整图文复制。支持同一电脑上的桌面 Obsidian 1.8.0+ 与 Chromium 116+ 浏览器。
 
 ## 1. 下载安装包
 
-打开 [v0.0.3 发布页](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.3)，在 Assets 下载：
+打开 [v0.0.4 发布页](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.4)，在 Assets 下载：
 
-- `wechat-layout-v0.0.3.zip`：Obsidian 插件。
-- `wechat-layout-extension-v0.0.3.zip`：浏览器助手。
-- 可选 `test-vault-v0.0.3.zip`：独立示例库，含插件与测试图片。
+- `wechat-layout-v0.0.4.zip`：Obsidian 插件。
+- `wechat-layout-extension-v0.0.4.zip`：浏览器助手。
+- 可选 `test-vault-v0.0.4.zip`：独立示例库，含插件与测试图片。
 
 Release 尚在生成时，可从 [downloads 目录](https://github.com/ruoshui6662/obsidian-wechat-editor/tree/main/downloads) 打开 ZIP 后下载原始文件。不要将 GitHub 自动提供的 **Source code** 包当作安装包。普通用户无需安装 Node.js 或 pnpm。
 
@@ -39,17 +39,17 @@ macOS Finder 使用 `⌘⇧.` 显示隐藏文件。Windows 文件资源管理器
 
 ### 可选：先体验示例库
 
-解压 `test-vault-v0.0.3.zip`，在 Obsidian 的仓库管理中选择「打开本地仓库」，选 `test-vault` 文件夹。信任你下载的示例库并启用插件后，打开「日常测试」或「图片样式测试」。不要把整个测试库复制覆盖到自己的笔记库。
+解压 `test-vault-v0.0.4.zip`，在 Obsidian 的仓库管理中选择「打开本地仓库」，选 `test-vault` 文件夹。信任你下载的示例库并启用插件后，打开「日常测试」或「图片样式测试」。不要把整个测试库复制覆盖到自己的笔记库。
 
 ## 3. 安装浏览器图片助手
 
 完整页面、权限和更新方式见[浏览器配置](BROWSER.md)。
 
-1. 解压 `wechat-layout-extension-v0.0.3.zip`，得到 `extension` 文件夹。把它放到一个长期保留的位置；不要加载后再删除或移动。
+1. 解压 `wechat-layout-extension-v0.0.4.zip`，得到 `extension` 文件夹。把它放到一个长期保留的位置；不要加载后再删除或移动。
 2. Chrome 地址栏输入 `chrome://extensions`；Edge 输入 `edge://extensions`。
 3. 开启「开发者模式」，选择「加载已解压的扩展程序」（有些浏览器称“加载未打包的扩展程序”）。
 4. 选择**直接包含 `manifest.json` 的 `extension` 文件夹**，不是 ZIP，也不是源代码根目录。
-5. 确认扩展名为「公众号图文排版 · 图片助手」、版本为 `0.0.3`，启用扩展。可在浏览器扩展菜单中固定到工具栏。
+5. 确认扩展名为「公众号图文排版 · 图片助手」、版本为 `0.0.4`，启用扩展。可在浏览器扩展菜单中固定到工具栏。
 
 Helium 等 Chromium 浏览器可从其扩展管理页加载，但应以实际兼容情况为准。Safari／Firefox 无法直接加载此包。
 
@@ -81,6 +81,6 @@ Helium 等 Chromium 浏览器可从其扩展管理页加载，但应以实际兼
 
 更新 Obsidian 插件：关闭插件，备份后只替换 `main.js`、`manifest.json`、`styles.css`（许可文件也可更新），**保留 `data.json`**，刷新列表再启用。浏览器助手更新：替换原 `extension` 文件夹内容，在扩展管理页点击该扩展的重新加载按钮，再刷新微信后台页。
 
-首发为v0.0.1，当前间距版为v0.0.3；旧本地测试版即使版本号较高，也需要按上述步骤手动覆盖两个组件。Obsidian 与浏览器清单按规范显示 `0.0.3`，GitHub 标签和文档显示 `v0.0.3`，是同一版本。
+首发为v0.0.1，当前操作区重组版为v0.0.4；旧本地测试版即使版本号较高，也需要按上述步骤手动覆盖两个组件。Obsidian 与浏览器清单按规范显示 `0.0.4`，GitHub 标签和文档显示 `v0.0.4`，是同一版本。
 
 若更新后仍显示旧版本，优先确认安装的是当前笔记库、扩展加载路径是新版文件夹，再刷新与重载。[问题排查](TROUBLESHOOTING.md)

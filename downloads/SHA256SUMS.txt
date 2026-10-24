@@ -1,3 +1,3 @@
-e9ceddf86d49032b742a073921481f4b3dda93f370536570982d9bed6fd05de7  wechat-layout-v0.0.3.zip
-1374c039ee24b8eae145bca330cd1cf4595f32a6daffa9592d4ee19bd7c7005d  wechat-layout-extension-v0.0.3.zip
-20f633b4aac0b2e626a856a7133617cd448ee368947d5f91c5aea08907a2b265  test-vault-v0.0.3.zip
+4c71e7febd5f842ec26168f79542e6083a1ad8aff53a0c5a0a16c18915691062  wechat-layout-v0.0.4.zip
+c85172074d2ea3782a028d50f7dcf2413bcda19dbde3f52010bbdbdd8a3cf5bb  wechat-layout-extension-v0.0.4.zip
+725d0a461b8dfdac0f1cb6d50d9b193b2b57515f751fe0e97f20bd9d3799d4dc  test-vault-v0.0.4.zip

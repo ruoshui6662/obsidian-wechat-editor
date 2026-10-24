@@ -29,21 +29,13 @@ it('accountUpdatesDoNotReplaceFocusedImageControls',()=>{
  const s=setup();s.select();const input=s.root.querySelector<HTMLInputElement>('[data-setting=shadow]');expect(input).not.toBeNull();input!.focus();s.p.setState({...s.state,account:{id:'a',name:'刷新账号'}});
  expect(s.root.querySelector('[data-setting=shadow]')).toBe(input);expect(document.activeElement).toBe(input);s.p.destroy();
 });
-it('imagePresetBakesStaticEffectsAndOriginalResetsAllLocalDecoration',async()=>{
- const s=setup();s.select();const floating=s.root.querySelector<HTMLButtonElement>('[data-image-preset=floating]');expect(floating).not.toBeNull();floating!.click();
- await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({shadow:12,radius:8,bakeEffects:true}));
- s.set('marginLeft','32');await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.leftInset).toBe(32));s.root.querySelector<HTMLButtonElement>('[data-image-preset=original]')!.click();
- await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({leftInset:32,shadow:0,radius:0,bakeEffects:false}));s.p.destroy();
-});
+it('radiusAndBorderChangesAutomaticallyPrepareStaticEffectsWithoutASeparateOutputSwitch',async()=>{const s=setup();s.select();expect(s.root.querySelector('[data-setting=bakeEffects]')).toBeNull();s.set('radius','8');s.set('borderWidth','2');await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({radius:8,borderWidth:2,bakeEffects:true}));s.set('marginLeft','32');s.set('radius','0');s.set('borderWidth','0');await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({leftInset:32,radius:0,borderWidth:0,bakeEffects:false}));s.p.destroy();});
 it('imageSaveErrorRemainsNearControlsAndCanBeRetried',async()=>{
  const s=setup();s.select();s.fail(true);s.set('shadow','8');await vi.waitFor(()=>expect(s.root.querySelector('[data-image-status]')?.textContent).toContain('写入失败'));
  s.p.setState({...s.state});expect(s.root.querySelector('[data-image-status]')?.textContent).toContain('写入失败');s.fail(false);s.root.querySelector<HTMLButtonElement>('[data-action=retry-image]')!.click();
  await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.shadow).toBe(8));s.p.destroy();
 });
-it('gifPresetKeepsAnimationInsteadOfRequestingStaticBaking',async()=>{
- const s=setup('![[动画.gif]] ^pic');s.select();const floating=s.root.querySelector<HTMLButtonElement>('[data-image-preset=floating]');expect(floating).not.toBeNull();floating!.click();
- await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.shadow).toBe(12));expect(s.state.overrides.pic?.image?.bakeEffects).toBe(false);expect(s.root.querySelector('[data-image-hint]')?.textContent).toContain('GIF');s.p.destroy();
-});
+it('gifDecorationChangesKeepAnimationInsteadOfRequestingStaticBaking',async()=>{const s=setup('![[动画.gif]] ^pic');s.select();s.set('radius','8');s.set('shadow','12');await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.shadow).toBe(12));expect(s.state.overrides.pic?.image?.bakeEffects).toBe(false);expect(s.root.querySelector('[data-image-hint]')?.textContent).toContain('GIF');s.p.destroy();});
 it('multipleImagesInOneBlockExplainHowToStyleThemIndividually',()=>{
  const s=setup('![[一.png]] ![[二.png]]');s.select(1);expect(s.root.querySelector('[data-selected-controls]')?.textContent).toContain('单独一段');expect(s.root.querySelector('[data-setting=shadow]')).toBeNull();s.p.destroy();
 });
@@ -66,11 +58,7 @@ it('manualWhitespaceStartsFromCurrentValueAndSurvivesStateUpdates',async()=>{
 it('existingCustomWhitespaceAutomaticallyShowsManualInputAndCanReturnToAPreset',async()=>{
  const s=setup();s.state.overrides.pic={image:{marginLeft:20}};s.p.setState({...s.state});s.select();expect(s.root.querySelector<HTMLElement>('[data-number-input=marginLeft]')!.hidden).toBe(false);expect(s.root.querySelector<HTMLInputElement>('[data-setting=marginLeft]')!.value).toBe('28');s.root.querySelector<HTMLButtonElement>('[data-number-manual=marginLeft]')!.click();const select=s.root.querySelector<HTMLSelectElement>('[data-number-select=marginLeft]')!;select.value='8';select.dispatchEvent(new Event('change'));await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.leftInset).toBe(8));expect(s.root.querySelector<HTMLElement>('[data-number-input=marginLeft]')!.hidden).toBe(true);s.root.querySelector<HTMLButtonElement>('[data-number-manual=marginLeft]')!.click();s.set('marginLeft','0');await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.leftInset).toBe(0));s.p.destroy();
 });
-it('noEffectPreservesImageLayoutAndOnlyRemovesDecoration',async()=>{
- const s=setup();s.select();s.set('marginLeft','16');s.set('marginRight','24');s.set('widthPercent','55');s.root.querySelector<HTMLButtonElement>('[data-image-preset=floating]')!.click();await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.shadow).toBe(12));
- const button=s.root.querySelector<HTMLButtonElement>('[data-image-preset=original]')!;expect(button.textContent).toBe('原图');button.click();await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({leftInset:16,rightInset:24,widthPercent:55,radius:0,shadow:0,borderWidth:0,bakeEffects:false}));
- expect(s.root.querySelector('[data-setting=imageWidth]')!.closest('section')!.getAttribute('aria-label')).toBe('尺寸与位置');s.p.destroy();
-});
+it('disablingShadowPreservesImageLayoutAndOtherDecoration',async()=>{const s=setup();s.select();s.set('marginLeft','16');s.set('marginRight','24');s.set('widthPercent','55');s.set('radius','8');s.set('shadow','12');await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.shadow).toBe(12));const toggle=s.root.querySelector<HTMLInputElement>('[data-image-shadow-toggle]')!;toggle.checked=false;toggle.dispatchEvent(new Event('change'));await vi.waitFor(()=>expect(s.state.overrides.pic?.image).toMatchObject({leftInset:16,rightInset:24,widthPercent:55,radius:8,shadow:0,bakeEffects:true}));expect(s.root.querySelector('[data-setting=imageWidth]')!.closest('details')).toBe(s.root.querySelector('[data-image-effects]'));s.p.destroy();});
 it('manualWidthRemainsVisibleWhileTypingAPresetValue',async()=>{
  const s=setup();s.select();const mode=s.root.querySelector<HTMLSelectElement>('[data-setting=imageWidth]')!;mode.value='custom';mode.dispatchEvent(new Event('change'));const input=s.root.querySelector<HTMLInputElement>('[data-setting=widthPercent]')!;expect(document.activeElement).toBe(input);s.set('widthPercent','40');await vi.waitFor(()=>expect(s.state.overrides.pic?.image?.widthPercent).toBe(40));expect(input.closest<HTMLElement>('.wx-field')!.hidden).toBe(false);expect(document.activeElement).toBe(input);s.p.destroy();
 });

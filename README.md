@@ -2,14 +2,15 @@
 
 在 Obsidian 写作、调整图文排版，通过配套浏览器助手，把包含图片的文章复制到微信公众号后台。
 
-**当前版本：v0.0.3** · 桌面版 Obsidian 1.8.0+ · Chrome / Edge 等 Chromium 116+ 浏览器
+**当前版本：v0.0.4** · 桌面版 Obsidian 1.8.0+ · Chrome / Edge 等 Chromium 116+ 浏览器
 
-[下载安装包](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.3) · [完整安装教程](docs/INSTALL.md) · [浏览器配置](docs/BROWSER.md) · [使用说明](docs/USAGE.md) · [常见问题](docs/TROUBLESHOOTING.md)
+[下载安装包](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.4) · [完整安装教程](docs/INSTALL.md) · [浏览器配置](docs/BROWSER.md) · [使用说明](docs/USAGE.md) · [常见问题](docs/TROUBLESHOOTING.md)
 
 ## 可以做什么
 
 - 原生笔记编辑区写 Markdown，插件顶部「编辑｜预览」切换排版和阅读。
-- 全文字体、字号、行距、字距、段距、缩进、两侧留白一次设置；提供五套文章主题和个人方案。
+- 正文常用参数集中设置，整篇生效；精调收起，提供五套排版风格和个人方案。
+- 图片明确区分整篇与当前图片，轻阴影独立开关；文章开头、结尾仅修改本篇，不与共用样式混用。
 - 点击笔记中的图片单独调整；支持文章默认、全文统一与撤销。
 - 图片提供左／居中／右／两端对齐；日常两端对齐默认与正文同宽，再选择无阴影或轻阴影。
 - 阴影直接附在图片边缘，不合成外圈白边；圆角、边框和底色可生成同尺寸副本，GIF 保留动画。
@@ -20,10 +21,10 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [wechat-layout-v0.0.3.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/wechat-layout-v0.0.3.zip) | 安装到你的 Obsidian 笔记库 |
-| [wechat-layout-extension-v0.0.3.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/wechat-layout-extension-v0.0.3.zip) | 在浏览器加载图片助手，图文复制需要它 |
-| [test-vault-v0.0.3.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/test-vault-v0.0.3.zip) | 独立示例笔记库，含插件与测试图片 |
-| [SHA256SUMS.txt](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.3/SHA256SUMS.txt) | 安装包完整性校验 |
+| [wechat-layout-v0.0.4.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.4/wechat-layout-v0.0.4.zip) | 安装到你的 Obsidian 笔记库 |
+| [wechat-layout-extension-v0.0.4.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.4/wechat-layout-extension-v0.0.4.zip) | 在浏览器加载图片助手，图文复制需要它 |
+| [test-vault-v0.0.4.zip](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.4/test-vault-v0.0.4.zip) | 独立示例笔记库，含插件与测试图片 |
+| [SHA256SUMS.txt](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/download/v0.0.4/SHA256SUMS.txt) | 安装包完整性校验 |
 
 Release 尚在生成或下载不可用时，可从仓库 [downloads 目录](downloads/)下载相同的三个 ZIP（打开文件后点 **Download raw file**）。GitHub 的 **Code → Download ZIP** 是源代码，需要构建后才能安装。
 

@@ -1,8 +1,12 @@
 import {parseArticle} from '../../core/src/parse';
 import type {Article} from '../../core/src/types';
-import type {Template} from './settings';
+import type {Template,NoteSettings,ArticleContent} from './settings';
 export type {Template} from './settings';
-export function applyTemplate(article:Article,template:Template):Article{
+export function resolveArticleContent(note:NoteSettings,templates:readonly Template[]):ArticleContent{
+ const template=templates.find(t=>t.id===note.templateId);
+ return {...(note.content??{headerMarkdown:template?.headerMarkdown??'',footerMarkdown:template?.footerMarkdown??''})};
+}
+export function applyTemplate(article:Article,template:ArticleContent|Template):Article{
  const main=parseArticle(article.source,article.sourcePath);
  function part(source:string,prefix:string):Article{
   const a=parseArticle(source,article.sourcePath);

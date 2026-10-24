@@ -13,7 +13,7 @@ it.each([
  ['paragraphBefore',[0,8,16,24,28,32,40,48]],
  ['paragraphAfter',[0,8,16,24,28,32,40,48]],
  ['letterSpacing',[0,.5,1,2]],
- ['lineHeight',[1,1.5,1.75,2,2.5,3]],
+ ['lineHeight',[1,1.5,1.75,1.8,2,2.5,3]],
  ['firstLineIndent',[0,2]],
 ]as const)('%s provides screenshot values plus manual entry', (key,values)=>{
  const s=setup(),select=s.root.querySelector<HTMLSelectElement>(`[data-number-select=${key}]`)!;expect(select).not.toBeNull();expect([...select.options].map(o=>o.value)).toEqual([...values.map(String),'manual']);select.value=String(values[values.length-1]);select.dispatchEvent(new Event('change'));expect(s.changed).toHaveBeenCalledWith({[key]:values[values.length-1]});expect(s.root.querySelector<HTMLElement>(`[data-number-input=${key}]`)!.hidden).toBe(true);
@@ -30,9 +30,7 @@ it('manualModeResetsToTheNewNotesValueWithoutCarryingThePreviousNoteUI',()=>{
 it('switchingNotesDiscardsTheOldFocusedDraftBeforeManualEntryInTheNewNote',()=>{
  const s=setup();s.p.setState({...s.state(),layout:{...DEFAULT_LAYOUT,fontSize:23}});const select=s.root.querySelector<HTMLSelectElement>('[data-number-select=fontSize]')!;select.value='manual';select.dispatchEvent(new Event('change'));const input=s.root.querySelector<HTMLInputElement>('[data-setting=fontSize]')!;input.value='27';s.p.setState({...s.state(),article:parseArticle('另一篇','另一篇.md'),layout:DEFAULT_LAYOUT});select.value='manual';select.dispatchEvent(new Event('change'));expect(input.value).toBe('16');input.value='';input.dispatchEvent(new Event('change'));expect(input.value).toBe('16');
 });
-it('localIndentSelectorCanDisplayTheGlobalCustomIndent',()=>{
- const s=setup();s.p.setState({...s.state(),layout:{...DEFAULT_LAYOUT,firstLineIndent:1.5}});s.p.selectBlock('block-0',null);expect(s.root.querySelector<HTMLSelectElement>('[data-setting=localIndent]')!.value).toBe('1.5');
-});
+it('textSelectionDoesNotReintroduceLocalFormattingControls',()=>{const s=setup();s.p.setState({...s.state(),layout:{...DEFAULT_LAYOUT,firstLineIndent:1.5}});expect(s.p.selectBlock('block-0',null)).toBe(false);expect(s.root.querySelector('[data-setting=localIndent]')).toBeNull();expect(s.root.querySelector<HTMLInputElement>('[data-setting=firstLineIndent]')!.value).toBe('1.5');});
 it('thirdLevelHeadingControlsOffer18pxManualValuesAndBarStylesWithLivePreview',()=>{
  const s=setup(),select=s.root.querySelector<HTMLSelectElement>('[data-number-select=h3FontSize]')!;expect(select).not.toBeNull();expect([...select.options].map(o=>o.value)).toEqual(['16','18','20','22','24','manual']);expect(select.value).toBe('18');select.value='manual';select.dispatchEvent(new Event('change'));const input=s.root.querySelector<HTMLInputElement>('[data-setting=h3FontSize]')!;input.value='19';input.dispatchEvent(new Event('input'));expect(s.state().layout.h3FontSize).toBe(19);const bar=s.root.querySelector<HTMLSelectElement>('[data-setting=h3AccentBar]')!;expect(bar).not.toBeNull();expect([...bar.options].map(o=>o.textContent)).toEqual(['蓝色分段','无装饰']);bar.value='false';bar.dispatchEvent(new Event('change'));expect(s.changed).toHaveBeenCalledWith({h3AccentBar:false});s.p.setState({...s.state(),article:parseArticle('### 测试标题','稿.md')});s.p.showPage('preview');expect(s.root.querySelector('.wx-paper')!.shadowRoot!.querySelector('h3')!.style.fontSize).toBe('19px');expect(s.root.querySelector('.wx-paper')!.shadowRoot!.querySelector('[data-wx-heading-bar]')).toBeNull();
 });

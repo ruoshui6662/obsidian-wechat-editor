@@ -1,10 +1,12 @@
-# v0.0.3 浏览器配置与连接
+# v0.0.4 浏览器配置与连接
 
 ## 浏览器选择与安装
 
+v0.0.4沿用相同连接协议；现有v0.0.3助手可继续使用，无需重新配对。新安装或更新助手使用下方v0.0.4安装包。
+
 使用 Chrome、Edge 或兼容的桌面 Chromium 116+ 浏览器，和 Obsidian 安装在同一电脑。Chrome／Edge 是主要安装路径；其他 Chromium 浏览器需实测。Safari、Firefox 与手机浏览器不支持此扩展。
 
-从 [发布页](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.3) 下载 `wechat-layout-extension-v0.0.3.zip`，解压到长期保留的文件夹。Chrome 打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启开发者模式，加载包含 `manifest.json` 的 `extension` 文件夹。
+从 [发布页](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.4) 下载 `wechat-layout-extension-v0.0.4.zip`，解压到长期保留的文件夹。Chrome 打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启开发者模式，加载包含 `manifest.json` 的 `extension` 文件夹。
 
 源码中的 `packages/extension/` 没有编译后的脚本，不能直接加载。下载即用的 ZIP 和构建生成的 `dist/extension/` 才能直接加载。
 
