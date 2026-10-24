@@ -1,12 +1,12 @@
-# v0.0.4 浏览器配置与连接
+# v0.0.5 浏览器配置与连接
 
 ## 浏览器选择与安装
 
-v0.0.4沿用相同连接协议；现有v0.0.3助手可继续使用，无需重新配对。新安装或更新助手使用下方v0.0.4安装包。
+本版增加短暂断线恢复与上传结果确认，**Obsidian 插件和浏览器助手都要更新至 v0.0.5**。旧助手仍可建立基本连接，但不具备本次完整修复。连接记录保留，通常无需重新配对。
 
 使用 Chrome、Edge 或兼容的桌面 Chromium 116+ 浏览器，和 Obsidian 安装在同一电脑。Chrome／Edge 是主要安装路径；其他 Chromium 浏览器需实测。Safari、Firefox 与手机浏览器不支持此扩展。
 
-从 [发布页](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.4) 下载 `wechat-layout-extension-v0.0.4.zip`，解压到长期保留的文件夹。Chrome 打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启开发者模式，加载包含 `manifest.json` 的 `extension` 文件夹。
+从 [发布页](https://github.com/ruoshui6662/obsidian-wechat-editor/releases/tag/v0.0.5) 下载 `wechat-layout-extension-v0.0.5.zip`，解压到长期保留的文件夹。Chrome 打开 `chrome://extensions`，Edge 打开 `edge://extensions`，开启开发者模式，加载包含 `manifest.json` 的 `extension` 文件夹。
 
 源码中的 `packages/extension/` 没有编译后的脚本，不能直接加载。下载即用的 ZIP 和构建生成的 `dist/extension/` 才能直接加载。
 
@@ -69,3 +69,9 @@ Obsidian「允许连接」
 更新扩展时保留原加载路径、覆盖文件后在管理页重新加载，再刷新公众号后台；卸载重装或更换路径可能导致扩展身份或记录改变。Obsidian 插件也应更新到同一首发版。
 
 “复制诊断”不包含密钥、Cookie 或文章正文，但可能含笔记库名称；公开反馈前仍建议检查并脱敏。[常见问题](TROUBLESHOOTING.md)
+
+## 复制中断与恢复
+
+同一个助手在15秒内恢复本机连接时，会继续等待原来的上传结果。系统只回传结果，不自动重发图片上传。微信登录核对失败会重查一次；仍无法确认时，复制会停止，不把不确定的图文写入剪贴板。
+
+浏览器助手彻底重启、Obsidian退出、连接被其他助手接管或文章／公众号已变化时，不继续旧任务。按提示重新复制；已经确认上传的图片在本次插件运行期间可复用缓存。取消不能撤销微信服务器已经接受的上传。

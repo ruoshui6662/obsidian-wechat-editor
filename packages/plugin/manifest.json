@@ -1,7 +1,7 @@
 {
   "id": "wechat-layout",
   "name": "公众号图文排版",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "minAppVersion": "1.8.0",
   "description": "在 Obsidian 调整图文排版，通过本机浏览器图片助手将完整图文复制到公众号。",
   "author": "Wechat Layout Contributors",

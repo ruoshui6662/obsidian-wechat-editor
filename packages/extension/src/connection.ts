@@ -17,13 +17,19 @@ const bounded=<T>(task:Promise<T>,ms:number,message:string):Promise<T>=>new Prom
 export class ExtensionConnection {
  private socket:WebSocket|null=null;private heartbeat:ReturnType<typeof setInterval>|null=null;private deadline:ReturnType<typeof setTimeout>|null=null;private reconnect:ReturnType<typeof setTimeout>|null=null;
  private generation=0;private uploads=new Map<string,AbortController>();private blocked=false;private attempts=0;private authenticated=false;private startedAt=0;private replyAt=0;private refreshTask:Promise<WechatSession|null>|null=null;
+ private sessionId=crypto.randomUUID();private session:WechatSession|null=null;private completed=new Map<string,BridgeMessage>();private resultTimers=new Map<string,ReturnType<typeof setTimeout>>();private recoveryDeadline:ReturnType<typeof setTimeout>|null=null;
+ private sendCurrent=(m:BridgeMessage):boolean=>{try{if(this.authenticated&&this.socket?.readyState===1){this.socket.send(JSON.stringify(m));return true;}}catch{}return false;};
  private state:LinkState={phase:'idle',message:'尚未连接 Obsidian',account:null,wechatMessage:'等待检查公众号后台'};
  constructor(private options:ConnectionOptions){}
  private publish(patch:Partial<LinkState>){this.state={...this.state,...patch};this.options.status(this.state.message);this.options.state?.({...this.state});}
- stop():void {
+ private forgetResult(id:string){this.completed.delete(id);clearTimeout(this.resultTimers.get(id));this.resultTimers.delete(id);}
+ private detach(code=4000):void {
   this.generation++;if(this.heartbeat)clearInterval(this.heartbeat);if(this.reconnect)clearTimeout(this.reconnect);if(this.deadline)clearTimeout(this.deadline);
   this.heartbeat=null;this.reconnect=null;this.deadline=null;this.authenticated=false;this.refreshTask=null;
-  const socket=this.socket;this.socket=null;for(const c of this.uploads.values())c.abort();this.uploads.clear();socket?.close();
+  const socket=this.socket;this.socket=null;socket?.close(code);
+ }
+ stop():void{
+  this.detach(4001);if(this.recoveryDeadline)clearTimeout(this.recoveryDeadline);this.recoveryDeadline=null;this.session=null;for(const c of this.uploads.values())c.abort();this.uploads.clear();for(const id of this.completed.keys())this.forgetResult(id);
  }
  async restore(force=false):Promise<void>{
   if(force){this.blocked=false;this.attempts=0;}
@@ -31,7 +37,7 @@ export class ExtensionConnection {
   if(!force&&this.socket&&[0,1].includes(this.socket.readyState)){
    if(Date.now()-(this.authenticated?this.replyAt:this.startedAt)<(this.authenticated?45000:10000))return;
   }else if(!force&&this.reconnect)return;
-  this.stop();const generation=this.generation,current=()=>generation===this.generation;
+  if(force)this.stop();else this.detach();const generation=this.generation,current=()=>generation===this.generation;
   this.startedAt=Date.now();this.publish({phase:this.attempts?'reconnecting':'connecting',message:'正在连接 Obsidian…',account:null});
   let pairing:Pairing|null;
   try{pairing=await this.options.load();if(!current())return;if(!pairing){this.publish({phase:'idle',message:'点击连接 Obsidian'});return;}if(this.options.locate)pairing=await this.options.locate(pairing);if(!current())return;}
@@ -45,19 +51,20 @@ export class ExtensionConnection {
   const read=async():Promise<WechatSession>=>this.options.resolveSession?this.options.resolveSession():{tabId:pairing!.tabId!,account:await this.options.readAccount(pairing!.tabId!)};
   const refresh=():Promise<WechatSession|null>=>{
    if(this.refreshTask)return this.refreshTask;
-   const task=bounded(read(),7000,'后台读取超时，请打开公众号后台').then(session=>{
+   const readFresh=async()=>{try{return await bounded(read(),8000,'后台读取超时，请打开公众号后台');}catch{return bounded(read(),8000,'后台读取超时，请打开公众号后台');}};
+   const task=readFresh().then(session=>{
     if(!alive())return null;
-    this.publish({account:session.account,wechatMessage:'后台已就绪'});send({version:1,type:'account',requestId:crypto.randomUUID(),payload:{account:session.account}});return session;
-   },error=>{if(alive()){this.publish({account:null,wechatMessage:error instanceof Error?error.message:'请打开已登录的公众号后台'});send({version:1,type:'account',requestId:crypto.randomUUID(),payload:{account:null}});}return null;}).finally(()=>{if(this.refreshTask===task)this.refreshTask=null;});
+    this.session=session;this.publish({account:session.account,wechatMessage:'后台已就绪'});send({version:1,type:'account',requestId:crypto.randomUUID(),payload:{account:session.account}});return session;
+   },error=>{if(alive()){this.session=null;this.publish({account:null,wechatMessage:error instanceof Error?error.message:'请打开已登录的公众号后台'});send({version:1,type:'account',requestId:crypto.randomUUID(),payload:{account:null,unavailable:true}});}return null;}).finally(()=>{if(this.refreshTask===task)this.refreshTask=null;});
    this.refreshTask=task;return task;
   };
   this.refresh=()=>this.authenticated&&alive()?refresh():Promise.resolve(null);
   socket.onopen=()=>{
    if(!alive())return;this.replyAt=Date.now();
-   send({version:1,type:'hello',requestId:crypto.randomUUID(),payload:{token:pairing!.token,clientId:pairing!.clientId,account:null}});
+   send({version:1,type:'hello',requestId:crypto.randomUUID(),payload:{token:pairing!.token,clientId:pairing!.clientId,sessionId:this.sessionId,account:null}});
    this.heartbeat=setInterval(()=>{
     if(!alive())return;if(Date.now()-this.replyAt>45000){socket.close(4000,'心跳超时');return;}
-    send({version:1,type:'ping',requestId:crypto.randomUUID(),payload:{}});if(this.authenticated)void refresh();
+    send({version:1,type:'ping',requestId:crypto.randomUUID(),payload:{}});if(this.authenticated&&!this.uploads.size)void refresh();
    },20000);
   };
   socket.onmessage=async event=>{
@@ -66,30 +73,38 @@ export class ExtensionConnection {
     const m=parseMessage(String(event.data));
     if(m.type==='hello-ok'){
      if(this.authenticated)return;this.authenticated=true;if(this.deadline)clearTimeout(this.deadline);this.attempts=0;this.replyAt=Date.now();
+     if(this.recoveryDeadline)clearTimeout(this.recoveryDeadline);this.recoveryDeadline=null;
+     const requested=Array.isArray(m.payload.pendingUploadIds)?new Set<string>(m.payload.pendingUploadIds):null;
+     if(requested){for(const [id,controller]of this.uploads)if(!requested.has(id))controller.abort();for(const [id,result]of this.completed){if(requested.has(id))this.sendCurrent(result);else this.forgetResult(id);}}
      this.publish({phase:'connected',message:'Obsidian 已连接',name:m.payload.name||pairing!.name,connectedAt:Date.now(),lastReplyAt:this.replyAt,wechatMessage:'正在识别公众号…'});
      if(m.payload.bridgeId){pairing={...pairing!,bridgeId:m.payload.bridgeId,name:m.payload.name};void this.options.save?.(pairing).catch(()=>{});}await refresh();return;
     }
     if(!this.authenticated)return;
     if(m.type==='pong'){this.replyAt=Date.now();this.publish({lastReplyAt:this.replyAt});return;}
-    if(m.type==='account-check'){const session=await refresh();send({version:1,type:'account',requestId:m.requestId,payload:{account:session?.account??null}});return;}
-    if(m.type==='cancel'){this.uploads.get(m.requestId)?.abort();return;}
+    if(m.type==='account-check'){const session=await refresh();send({version:1,type:'account',requestId:m.requestId,payload:{account:session?.account??null,...(!session?{unavailable:true}:{})}});return;}
+    if(m.type==='upload-ack'){this.forgetResult(m.requestId);return;}
+    if(m.type==='cancel'){this.uploads.get(m.requestId)?.abort();this.forgetResult(m.requestId);return;}
     if(m.type!=='upload')return;
+    if(this.uploads.has(m.requestId)||this.completed.has(m.requestId))return;
     const controller=new AbortController();this.uploads.set(m.requestId,controller);
+    const deliver=(result:BridgeMessage)=>{if(controller.signal.aborted)return;this.completed.set(m.requestId,result);this.resultTimers.set(m.requestId,setTimeout(()=>this.forgetResult(m.requestId),120000));this.sendCurrent(result);};
     try{
-     const session=await refresh();if(!alive()||controller.signal.aborted)return;
-     if(!session||session.account.id!==m.accountId)throw new LayoutError('account-changed','公众号已变化，请重新复制。');
+     const session=this.session??await refresh();if(controller.signal.aborted)return;
+     if(!session)throw new LayoutError('account-unavailable','无法核对微信登录，请检查后台后重试。');
+     if(session.account.id!==m.accountId)throw new LayoutError('account-changed','公众号已变化，请重新复制。');
      const raw=atob(m.payload.base64),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
      const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');
      if(bytes.length!==m.payload.size||hash!==m.payload.sha256)throw new LayoutError('asset-integrity','图片数据校验失败，请重试。');
-     if(!alive()||controller.signal.aborted)return;
+     if(controller.signal.aborted)return;
      const url=await this.options.upload(session.tabId,{key:m.payload.key,bytes,mime:m.payload.mime,filename:m.payload.filename,occurrenceIds:[]},m.accountId!,controller.signal);
-     if(!controller.signal.aborted)send({...m,type:'upload-result',payload:{key:m.payload.key,url}});
-    }catch(e){if(!controller.signal.aborted)send({...m,type:'error',payload:{code:e instanceof LayoutError?e.code:'upload-failed',message:e instanceof Error?e.message.slice(0,1000):'上传失败，请重试。'}});}finally{if(this.uploads.get(m.requestId)===controller)this.uploads.delete(m.requestId);}
+     deliver({version:1,requestId:m.requestId,jobId:m.jobId,accountId:m.accountId,type:'upload-result',payload:{key:m.payload.key,url}});
+    }catch(e){deliver({version:1,requestId:m.requestId,jobId:m.jobId,accountId:m.accountId,type:'error',payload:{code:e instanceof LayoutError?e.code:'upload-failed',message:e instanceof Error?e.message.slice(0,1000):'上传失败，请重试。'}});}finally{if(this.uploads.get(m.requestId)===controller)this.uploads.delete(m.requestId);}
    }catch{if(alive())socket.close(4003,'消息不兼容，请更新两端插件');}
   };
   socket.onclose=event=>{
-   if(!alive())return;this.stop();const revoked=event?.code===4003;
-   if(revoked){this.blocked=true;this.publish({phase:'approval',account:null,message:'连接已失效，请点击重新连接',lastDisconnect:'授权失效或连接被替换',disconnectedAt:Date.now()});}
+   if(!alive())return;this.detach();const revoked=event?.code===4003;
+   if(!this.recoveryDeadline)this.recoveryDeadline=setTimeout(()=>{this.recoveryDeadline=null;for(const c of this.uploads.values())c.abort();this.uploads.clear();for(const id of this.completed.keys())this.forgetResult(id);this.session=null;},15000);
+   if(revoked){this.stop();this.blocked=true;this.publish({phase:'approval',account:null,message:'连接已失效，请点击重新连接',lastDisconnect:'授权失效或连接被替换',disconnectedAt:Date.now()});}
    else this.retry('本机连接中断，正在自动恢复');
   };
   socket.onerror=()=>{if(alive())this.publish({message:'正在等待 Obsidian…'});};

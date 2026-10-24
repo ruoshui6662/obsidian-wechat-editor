@@ -37,3 +37,29 @@ describe('local bridge',()=>{
   await vi.waitFor(()=>expect(info.server.getAccount()).toBeNull());
  });
 });
+
+it('temporary account unavailability does not cancel an in-flight upload',async()=>{
+ const info=await start(),s=await connect(info.endpoint,info.pairingToken);await message(s);const incoming=message(s),task=info.server.upload(tinyAsset(),testAccount,new AbortController().signal,'job'),m=await incoming;
+ s.send(JSON.stringify({version:1,type:'account',requestId:'temporary',payload:{account:null,unavailable:true}}));
+ s.send(JSON.stringify({...m,type:'upload-result',payload:{key:m.payload.key,url:'https://mmbiz.qpic.cn/right'}}));await expect(task).resolves.toBe('https://mmbiz.qpic.cn/right');expect(info.server.getAccount()).toEqual(testAccount);
+});
+async function resumableConnect(info:{endpoint:string;pairingToken:string;server:BridgeServer},sessionId:string){const s=new WebSocket(info.endpoint,{origin});clients.push(s);await new Promise<void>((r,j)=>{s.once('open',r);s.once('error',j);});const hello=message(s);s.send(JSON.stringify({version:1,type:'hello',requestId:'hello',payload:{token:info.pairingToken,account:null,sessionId}}));await hello;s.send(JSON.stringify({version:1,type:'account',requestId:'ready',payload:{account:testAccount}}));await vi.waitFor(()=>expect(info.server.getAccount()).toEqual(testAccount));return s;}
+it('same worker can deliver an upload result after reconnect without resending bytes',async()=>{
+ const info=await start(),s=await resumableConnect(info,'worker');const incoming=message(s),task=info.server.upload(tinyAsset(),testAccount,new AbortController().signal,'job');const assertion=expect(task).resolves.toBe('https://mmbiz.qpic.cn/resumed');void assertion.catch(()=>{});const m=await incoming;
+ s.close();await new Promise<void>(r=>s.once('close',()=>r()));const resumed=await resumableConnect(info,'worker');resumed.send(JSON.stringify({...m,type:'upload-result',payload:{key:m.payload.key,url:'https://mmbiz.qpic.cn/resumed'}}));await assertion;
+});
+it('a restarted worker ends an uncertain upload instead of replaying its POST',async()=>{
+ const info=await start(),s=await resumableConnect(info,'worker');const incoming=message(s),task=info.server.upload(tinyAsset(),testAccount,new AbortController().signal);const assertion=expect(task).rejects.toMatchObject({code:'bridge-restarted'});void assertion.catch(()=>{});await incoming;s.close();await new Promise<void>(r=>s.once('close',()=>r()));await resumableConnect(info,'new-worker');await assertion;
+});
+it('unavailable account checks fail safely without erasing the last verified account',async()=>{
+ const info=await start(),s=await connect(info.endpoint,info.pairingToken);await message(s);const incoming=message(s),task=info.server.verifyAccount(testAccount,new AbortController().signal),assertion=expect(task).rejects.toMatchObject({code:'account-unavailable'}),m=await incoming;s.send(JSON.stringify({version:1,type:'account',requestId:m.requestId,payload:{account:null,unavailable:true}}));await assertion;expect(info.server.getAccount()).toEqual(testAccount);
+});
+it('a confirmed account switch still cancels pending uploads',async()=>{
+ const info=await start(),s=await connect(info.endpoint,info.pairingToken);await message(s);const incoming=message(s),task=info.server.upload(tinyAsset(),testAccount,new AbortController().signal),assertion=expect(task).rejects.toMatchObject({code:'account-changed'});await incoming;s.send(JSON.stringify({version:1,type:'account',requestId:'switch',payload:{account:{id:'other',name:'other'}}}));await assertion;
+});
+it('reissues an interrupted account check after reconnect',async()=>{
+ const info=await start(),s=await resumableConnect(info,'worker');const incoming=message(s),task=info.server.verifyAccount(testAccount,new AbortController().signal),m=await incoming;s.close();await new Promise<void>(r=>s.once('close',()=>r()));const resumed=new WebSocket(info.endpoint,{origin});clients.push(resumed);await new Promise<void>(r=>resumed.once('open',()=>r()));const messages:any[]=[];resumed.on('message',data=>messages.push(JSON.parse(data.toString())));resumed.send(JSON.stringify({version:1,type:'hello',requestId:'hello',payload:{token:info.pairingToken,account:null,sessionId:'worker'}}));await vi.waitFor(()=>expect(messages.some(x=>x.type==='account-check'&&x.requestId===m.requestId)).toBe(true));resumed.send(JSON.stringify({version:1,type:'account',requestId:m.requestId,payload:{account:testAccount}}));await expect(task).resolves.toBeUndefined();
+});
+it('same worker replaces a half-open socket without cancelling its upload',async()=>{
+ const info=await start(),old=await resumableConnect(info,'same-worker');const incoming=message(old),task=info.server.upload(tinyAsset(),testAccount,new AbortController().signal,'job'),m=await incoming;void task.catch(()=>{});const resumed=await resumableConnect(info,'same-worker');resumed.send(JSON.stringify({...m,type:'upload-result',payload:{key:m.payload.key,url:'https://mmbiz.qpic.cn/half-open'}}));await expect(task).resolves.toBe('https://mmbiz.qpic.cn/half-open');
+});

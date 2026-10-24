@@ -1,5 +1,5 @@
 import type { Account } from './types';
-export type MessageType='hello'|'hello-ok'|'account'|'account-check'|'upload'|'upload-result'|'error'|'cancel'|'ping'|'pong'|'discover'|'discovery'|'pair-request'|'pair-waiting'|'pair-granted'|'pair-denied';
+export type MessageType='hello'|'hello-ok'|'account'|'account-check'|'upload'|'upload-result'|'upload-ack'|'error'|'cancel'|'ping'|'pong'|'discover'|'discovery'|'pair-request'|'pair-waiting'|'pair-granted'|'pair-denied';
 export interface BridgeMessage {version:1;type:MessageType;requestId:string;jobId?:string;accountId?:string;payload:any}
 export const MAX_MESSAGE_BYTES=16*1024*1024;
 export function isAccount(value:unknown):value is Account {const a=value as Account;return !!a&&typeof a.id==='string'&&a.id.length>0&&a.id.length<=256&&typeof a.name==='string'&&a.name.length<=256;}
@@ -9,7 +9,7 @@ export function isWechatImageURL(value:unknown):value is string{
 export function parseMessage(raw:string):BridgeMessage{
  if(new TextEncoder().encode(raw).length>MAX_MESSAGE_BYTES)throw Error('消息过大');
  const m=JSON.parse(raw) as BridgeMessage;
- if(!m||m.version!==1||typeof m.requestId!=='string'||!m.requestId||m.requestId.length>128||!['hello','hello-ok','account','account-check','upload','upload-result','error','cancel','ping','pong','discover','discovery','pair-request','pair-waiting','pair-granted','pair-denied'].includes(m.type)||m.payload===null||typeof m.payload!=='object')throw Error('消息格式无效');
+ if(!m||m.version!==1||typeof m.requestId!=='string'||!m.requestId||m.requestId.length>128||!['hello','hello-ok','account','account-check','upload','upload-result','upload-ack','error','cancel','ping','pong','discover','discovery','pair-request','pair-waiting','pair-granted','pair-denied'].includes(m.type)||m.payload===null||typeof m.payload!=='object')throw Error('消息格式无效');
  if(m.jobId!==undefined&&(typeof m.jobId!=='string'||m.jobId.length>128))throw Error('任务标识无效');
  if(m.accountId!==undefined&&(typeof m.accountId!=='string'||m.accountId.length>256))throw Error('账号标识无效');
  const p=m.payload;
@@ -18,6 +18,9 @@ export function parseMessage(raw:string):BridgeMessage{
  if(m.type==='pair-request'&&(!label(p.bridgeId)||!label(p.clientId)||!label(p.name,80)))throw Error('授权请求无效');
  if(m.type==='discovery'&&(p.product!=='wechat-layout'||!label(p.bridgeId)||!label(p.name,80)))throw Error('服务信息无效');
  if(m.type==='pair-granted'&&(!label(p.bridgeId)||!label(p.name,80)||typeof p.token!=='string'||!/^[a-f0-9]{64}$/.test(p.token)))throw Error('授权信息无效');
+ if(m.type==='hello'&&p.sessionId!==undefined&&!label(p.sessionId))throw Error('会话标识无效');
+ if(m.type==='account'&&p.unavailable!==undefined&&(typeof p.unavailable!=='boolean'||p.unavailable&&p.account!==null))throw Error('账号状态无效');
+ if(m.type==='hello-ok'&&p.pendingUploadIds!==undefined&&(!Array.isArray(p.pendingUploadIds)||p.pendingUploadIds.length>1024||!p.pendingUploadIds.every((id:unknown)=>label(id))))throw Error('恢复任务无效');
  if(m.type==='hello'&&p.clientId!==undefined&&!label(p.clientId))throw Error('助手标识无效');
  if(m.type==='hello'&&(typeof p.token!=='string'||p.token.length>256||(p.account!==null&&!isAccount(p.account))))throw Error('配对数据无效');
  if(m.type==='account'&&p.account!==null&&!isAccount(p.account))throw Error('账号数据无效');

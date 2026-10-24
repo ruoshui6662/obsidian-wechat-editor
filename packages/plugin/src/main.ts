@@ -11,7 +11,7 @@ import {CopyJobController,abortable,type Snapshot,type JobEvent} from '../../cor
 import {LayoutError,type Article,type ImageStyle,type BlockOverrides,type ImageGeometry} from '../../core/src/types';
 import {BridgeServer} from './bridge';
 import {ConfirmBrowserPairing} from './confirm-browser-pairing';
-import {prepareAssets,resolveVaultAsset,inspectImage,type VaultPort,type EffectRenderer} from './vault-assets';
+import {prepareAssets,resolveVaultAsset,resolveVaultAssetPath,inspectImage,type VaultPort,type EffectRenderer} from './vault-assets';
 import {writeRichClipboard,writeTextClipboard} from './clipboard';
 import {loadSettings,type PluginSettings,type NoteSettings} from './settings';
 import {LayoutPanel,type PanelState,type PanelHost} from './view';
@@ -32,12 +32,14 @@ export default class WechatLayoutPlugin extends Plugin{
  private appearanceUndo=new Map<string,{before:NoteSettings;after:string}>();
  private views=new Set<WechatLayoutView>();private opening:Promise<WorkspaceLeaf|undefined>|null=null;private pendingSaves=0;private saveError='';private saveQueue:Promise<void>=Promise.resolve();private previewAssets=new PreviewAssets();private refreshId=0;private disposed=false;private lastAccount:string|null=null;private previewSources=new Map<string,string>();private previewGeometry=new Map<string,ImageGeometry>();private previewDiagnostics:string[]=[];
  private bridgeStarting:Promise<void>|null=null;private bridgeError='';
- private downloadingImages=false;private copyAbort:AbortController|null=null;
+ private downloadingImages=false;private copyAbort:AbortController|null=null;private copyArticle:Article|null=null;
  private attachmentCreates=new Set<string>();
+ private assetFiles:string[]=[];
+ private sourceCheck:Promise<void>=Promise.resolve();
  effectRenderer:EffectRenderer=renderImageEffect;
  async onload(){
-  this.settings=loadSettings(await this.loadData());this.activeNote=this.app.workspace.getActiveFile();
-  this.controller=new CopyJobController({verifyAccount:(account,signal)=>this.bridge.verifyAccount(account,signal),prepare:(s,signal)=>this.prepare(s,signal),upload:(a,account,signal)=>this.bridge.upload(a,account,signal),render:(s,map,geometry)=>renderArticle(s.article,s.layout,map,s.overrides,geometry),writeClipboard:writeRichClipboard,isCurrent:s=>!this.disposed&&s.revision===String(this.version)&&this.activeNote?.path===s.article.sourcePath&&this.bridge.getAccount()?.id===s.account.id,onEvent:e=>this.copyEvent(e)});
+  this.settings=loadSettings(await this.loadData());this.activeNote=this.app.workspace.getActiveFile();this.assetFiles=this.app.vault.getFiles?.().map(file=>file.path)??[];
+  this.controller=new CopyJobController({verifyAccount:async(account,signal)=>{await this.bridge.verifyAccount(account,signal);await this.verifySourceChecks(signal);},prepare:(s,signal)=>this.prepare(s,signal),upload:(a,account,signal)=>this.bridge.upload(a,account,signal),render:(s,map,geometry)=>renderArticle(s.article,s.layout,map,s.overrides,geometry),writeClipboard:writeRichClipboard,isCurrent:s=>!this.disposed&&s.revision===String(this.version)&&this.activeNote?.path===s.article.sourcePath&&this.bridge.getAccount()?.id===s.account.id,onEvent:e=>this.copyEvent(e)});
   this.registerView(VIEW,leaf=>new WechatLayoutView(leaf,this));for(const type of LEGACY)this.registerView(type,leaf=>new LegacyLayoutView(leaf,this,type));
   this.addCommand({id:'open-wechat-layout',name:'公众号图文排版',callback:()=>void this.openView()});
   this.addCommand({id:'reset-wechat-layout-pairing',name:'重新配对公众号图片助手',callback:()=>void this.resetPairing()});
@@ -46,11 +48,11 @@ export default class WechatLayoutPlugin extends Plugin{
   const watched=new WeakSet<Document>();const watch=(doc:Document)=>{if(watched.has(doc))return;watched.add(doc);this.register(watchNativeImages(doc,selection=>this.openNativeImage(selection),error=>new Notice(error instanceof Error?error.message:'无法打开图片样式，请重试。')));};
   watch(this.app.workspace.containerEl.ownerDocument);this.app.workspace.iterateAllLeaves(leaf=>watch(leaf.view.containerEl.ownerDocument));this.registerEvent(this.app.workspace.on('window-open',(_win,window)=>watch(window.document)));
   this.registerEvent(this.app.workspace.on('file-open',file=>{if(file?.extension==='md'&&file.path!==this.activeNote?.path){this.activeNote=file;this.invalidate();void this.refresh();}}));
-  this.registerEvent(this.app.workspace.on('editor-change',(_editor,view)=>{if(view.file?.path===this.activeNote?.path){this.invalidate();void this.refresh();}}));
-  this.registerEvent(this.app.vault.on('modify',file=>{if(file.path===this.activeNote?.path||file instanceof TFile&&file.extension!=='md'){if(!(file instanceof TFile)||file.extension!=='md')this.previewAssets.clear();this.invalidate();void this.refresh();}}));
-  this.registerEvent(this.app.vault.on('rename',(file,oldPath)=>{this.previewAssets.clear();migrateNotePath(this.settings.notes,oldPath,file.path);void this.persist();this.invalidate();void this.refresh();}));
-  this.registerEvent(this.app.vault.on('delete',file=>{if(file.path===this.activeNote?.path){this.activeNote=null;this.article=null;this.refreshId++;this.previewAssets.clear();this.invalidate();this.pushState();}else if(!(file instanceof TFile)||file.extension!=='md'){this.previewAssets.clear();this.invalidate();void this.refresh();}}));
-  this.registerEvent(this.app.vault.on('create',file=>{if(this.attachmentCreates.delete(file.path))return;if(!(file instanceof TFile)||file.extension!=='md'){this.previewAssets.clear();this.invalidate();void this.refresh();}}));
+  this.registerEvent(this.app.workspace.on('editor-change',(editor,view)=>{if(view.file?.path===this.activeNote?.path&&editor.getValue()!==(this.copyArticle??this.article)?.source){this.invalidate();void this.refresh();}}));
+  this.registerEvent(this.app.vault.on('modify',file=>{if(file.path===this.activeNote?.path){this.sourceCheck=Promise.all([this.sourceCheck,this.refreshChangedSource()]).then(()=>{});return;}if(this.assetChange('modify',file)){this.previewAssets.clear();this.invalidate();void this.refresh();}}));
+  this.registerEvent(this.app.vault.on('rename',(file,oldPath)=>{const assets=this.assetChange('rename',file,oldPath),source=file===this.activeNote||!!this.article&&(this.article.sourcePath===oldPath||this.article.sourcePath.startsWith(oldPath+'/'));migrateNotePath(this.settings.notes,oldPath,file.path);void this.persist();if(source||assets){this.previewAssets.clear();this.invalidate();void this.refresh();}}));
+  this.registerEvent(this.app.vault.on('delete',file=>{const assets=this.assetChange('delete',file);if(this.activeNote&&(file.path===this.activeNote.path||this.activeNote.path.startsWith(file.path+'/'))){this.activeNote=null;this.article=null;this.refreshId++;this.previewAssets.clear();this.invalidate();this.pushState();}else if(assets){this.previewAssets.clear();this.invalidate();void this.refresh();}}));
+  this.registerEvent(this.app.vault.on('create',file=>{const own=this.attachmentCreates.delete(file.path);if(this.assetChange('create',file)&&!own){this.previewAssets.clear();this.invalidate();void this.refresh();}}));
   await this.startBridge();
   this.app.workspace.onLayoutReady(()=>{void this.restoreWorkspaceLayout().catch(e=>new Notice(e instanceof Error?e.message:'无法恢复排版窗格。'));});
  }
@@ -81,6 +83,29 @@ export default class WechatLayoutPlugin extends Plugin{
  }
  async resetPairing(){this.cancelCopy();if(this.bridgeStarting)await this.bridgeStarting;await this.bridge.stop();delete this.settings.bridgeToken;delete this.settings.bridgeOrigin;delete this.settings.bridgeClientId;await this.startBridge();if(this.bridge.getInfo().endpoint)new Notice('已解除旧连接，请在浏览器图片助手中点击连接，并在这里允许。');}
  invalidate(){this.version++;this.controller?.cancel();}
+ private async verifySourceChecks(signal:AbortSignal){
+  let pending:Promise<void>;
+  do{pending=this.sourceCheck;await abortable(pending,signal);}while(pending!==this.sourceCheck);
+ }
+ private async refreshChangedSource(){
+  const path=this.activeNote?.path;if(!path)return;
+  let source:string;try{source=await this.readSource();}catch{if(!this.disposed&&this.activeNote?.path===path)this.invalidate();return;}
+  if(this.disposed||this.activeNote?.path!==path)return;
+  const article=this.copyArticle??this.article;
+  if(article?.sourcePath===path&&article.source===source){if(this.article?.source!==source)void this.refresh();return;}
+  this.invalidate();void this.refresh();
+ }
+ private assetChange(kind:'modify'|'create'|'delete'|'rename',file:{path:string},oldPath?:string):boolean{
+  const before=this.assetFiles,inside=(path:string,parent:string)=>path===parent||path.startsWith(parent+'/');
+  this.assetFiles=this.app.vault.getFiles?.().map(item=>item.path)??(kind==='delete'?before.filter(path=>!inside(path,file.path)):kind==='rename'?before.map(path=>inside(path,oldPath!)?file.path+path.slice(oldPath!.length):path):kind==='create'&&file instanceof TFile?[...new Set([...before,file.path])]:before);
+  const article=this.copyArticle??(this.article?.sourcePath?this.expandArticle(this.article):null);if(!article||!this.activeNote)return false;
+  const resolve=(ref:Article['images'][number],files:readonly string[])=>{try{return resolveVaultAssetPath(ref,article.sourcePath,files);}catch{return null;}};
+  return article.images.some(ref=>{
+   if(/^https?:\/\//i.test(ref.source))return false;
+   const previous=resolve(ref,before),current=resolve(ref,this.assetFiles);
+   return previous!==current||kind==='modify'&&!!current&&inside(current,file.path);
+  });
+ }
  async persist(){await this.saveData(this.settings);}
  noteSettings():NoteSettings{
   if(!this.activeNote)return{overrides:{}};return this.settings.notes[this.activeNote.path]??(this.settings.notes[this.activeNote.path]={overrides:{}});
@@ -113,7 +138,7 @@ export default class WechatLayoutPlugin extends Plugin{
   publish();this.previewAssets.retain(new Set(local.map(plan=>plan.key)));
   const missing=local.filter(plan=>!sources.has(plan.ref.occurrenceId));if(!missing.length)return;
   try{
-   const vault=await this.vaultPort();if(!current())return;
+   const vault=await this.vaultPort();if(!current())return;this.assetFiles=vault.listFiles();
    for(const {ref,style,bake,key}of missing){
     if(!current())return;
     try{
@@ -179,7 +204,7 @@ export default class WechatLayoutPlugin extends Plugin{
  async copy(){
   if(this.pendingSaves||this.saveError)throw new LayoutError('save-pending',this.saveError?`排版保存失败：${this.saveError}，请重试保存。`:'排版正在保存，请稍后复制。');
   if(!this.article||!this.activeNote)throw new LayoutError('no-note','请先打开一篇 Markdown 笔记。');const account=this.bridge.getAccount();if(!account)throw new LayoutError('no-account','请先连接浏览器图片助手并登录公众号。');
-  this.cancelCopy();const controller=new AbortController();this.copyAbort=controller;const {signal}=controller;
+  this.cancelCopy();this.copyArticle=null;const controller=new AbortController();this.copyAbort=controller;const {signal}=controller;
   const check=()=>{if(signal.aborted)throw new LayoutError('cancelled','已取消本次复制。');};
   try{
    this.copyEvent({type:'downloading',message:'检查网络图片…'});
@@ -189,12 +214,13 @@ export default class WechatLayoutPlugin extends Plugin{
    const revision=this.version,source=await abortable(this.readSource(),signal);check();
    if(this.activeNote?.path!==sourcePath||this.version!==revision||this.bridge.getAccount()?.id!==account.id)throw new LayoutError('stale-snapshot','文章或公众号已变化，请重新复制。');
    const article=this.expandArticle(parseArticle(source,sourcePath));
+   this.copyArticle=article;
    const snapshot:Snapshot={id:randomUUID(),article,layout:this.effectiveLayout(),overrides:structuredClone(this.effectiveOverrides(article)),account,revision:String(this.version)};
    await this.controller.run(snapshot,signal);
   }catch(error){
    if(this.copyAbort===controller)this.copyEvent({type:error instanceof LayoutError&&error.code==='cancelled'?'cancelled':'failed',message:error instanceof Error?error.message:'复制失败，请重试。'});
    throw error;
-  }finally{if(this.copyAbort===controller)this.copyAbort=null;}
+  }finally{if(this.copyAbort===controller){this.copyAbort=null;this.copyArticle=null;}}
  }
  private copyEvent(event:JobEvent){for(const view of this.views)view.panel?.setJobEvent(event);}
  private cancelCopy(){this.copyAbort?.abort();this.controller?.cancel();}

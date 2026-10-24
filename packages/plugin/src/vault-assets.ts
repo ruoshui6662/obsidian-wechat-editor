@@ -9,18 +9,22 @@ export interface VaultPort { listFiles():string[]; readBinary(path:string):Promi
 export type AssetReader=(ref:ImageRef)=>Promise<{bytes:Uint8Array;filename:string}>;
 export type EffectRenderer=(bytes:Uint8Array,mime:string,style:ImageStyle,displayWidth?:number)=>Promise<{bytes:Uint8Array;mime:string;geometry?:ImageGeometry}>;
 export const digest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
-export async function resolveVaultAsset(ref:ImageRef,sourcePath:string,vault:VaultPort):Promise<{bytes:Uint8Array;filename:string}>{
+export function resolveVaultAssetPath(ref:ImageRef,sourcePath:string,files:readonly string[]):string{
  let source:string;try{source=ref.literalPath?ref.source:decodeURIComponent(ref.source);}catch{throw new LayoutError('invalid-path','图片路径编码不正确。',[ref.occurrenceId]);}
  if(source.includes('\0')||/^[a-z][a-z0-9+.-]*:/i.test(source)||source.startsWith('/')||source.includes('\\'))throw new LayoutError('outside-vault','图片必须位于当前 Vault 内。',[ref.occurrenceId]);
  const path=posix.normalize(posix.join(posix.dirname(sourcePath),source));
  if(path==='..'||path.startsWith('../'))throw new LayoutError('outside-vault','图片路径超出当前 Vault。',[ref.occurrenceId]);
- const files=vault.listFiles();let selected=files.includes(path)?path:files.includes(source)?source:undefined;
+ let selected=files.includes(path)?path:files.includes(source)?source:undefined;
  if(!selected&&!source.includes('/')){
   const candidates=files.filter(f=>posix.basename(f)===source);
   if(candidates.length>1)throw new LayoutError('ambiguous-image',`找到多张同名图片 ${source}，请填写目录。`,[ref.occurrenceId]);
   selected=candidates[0];
  }
  if(!selected)throw new LayoutError('missing-image',`找不到图片：${source}`,[ref.occurrenceId]);
+ return selected;
+}
+export async function resolveVaultAsset(ref:ImageRef,sourcePath:string,vault:VaultPort):Promise<{bytes:Uint8Array;filename:string}>{
+ const selected=resolveVaultAssetPath(ref,sourcePath,vault.listFiles());
  if(vault.realPath&&vault.rootRealPath){const real=await vault.realPath(selected);const rel=relative(vault.rootRealPath,real);if(rel==='..'||rel.startsWith('../')||isAbsolute(rel))throw new LayoutError('outside-vault','图片软链接指向 Vault 外部。',[ref.occurrenceId]);}
  return {bytes:await vault.readBinary(selected),filename:posix.basename(selected)};
 }
@@ -47,14 +51,19 @@ export function inspectImage(bytes:Uint8Array):{mime:string;width:number;height:
 }
 export async function prepareAssets(article:Article,read:AssetReader,styles:ReadonlyMap<string,ImageStyle>,effects:EffectRenderer,readingWidth?:(ref:ImageRef,naturalWidth:number)=>number,signal?:AbortSignal):Promise<PreparedAsset[]>{
  const check=()=>{if(signal?.aborted)throw new LayoutError('cancelled','已取消本次复制。');};const wait=<T>(promise:Promise<T>)=>signal?abortable(promise,signal):promise;
- const result=new Map<string,PreparedAsset>();const originals=new Map<string,Promise<{bytes:Uint8Array;filename:string}>>();
+ const result=new Map<string,PreparedAsset>();const originals=new Map<string,Promise<{bytes:Uint8Array;filename:string}>>();const baked=new Map<string,Promise<Awaited<ReturnType<EffectRenderer>>>>();
  for(const ref of article.images){
   try{
    check();const sourceKey=(ref.literalPath?'literal:':'url:')+ref.source;
    if(!originals.has(sourceKey))originals.set(sourceKey,read(ref));
    let {bytes,filename}=await wait(originals.get(sourceKey)!);check();const info=inspectImage(bytes);let mime=info.mime;let geometry:ImageGeometry|undefined;
    const style=normalizeImage(styles.get(ref.occurrenceId));
-   if(needsImageBake(style)&&ref.mode==='block'&&mime!=='image/gif'){const output=await wait(effects(bytes,mime,style,readingWidth?.(ref,info.width)));check();geometry=output.geometry;bytes=output.bytes;mime=output.mime;inspectImage(bytes);filename=filename.replace(/\.[^.]*$/,'')+'.png';}
+   if(needsImageBake(style)&&ref.mode==='block'&&mime!=='image/gif'){
+    const width=readingWidth?.(ref,info.width)??Math.min(info.width,375);
+    const effectKey=JSON.stringify([sourceKey,width,style.radius,style.borderWidth,style.borderWidth?style.borderColor:null,style.backgroundMode==='solid',style.backgroundMode==='solid'?style.background:null]);
+    if(!baked.has(effectKey))baked.set(effectKey,effects(bytes,mime,style,width));
+    const output=await wait(baked.get(effectKey)!);check();geometry=output.geometry;bytes=output.bytes;mime=output.mime;inspectImage(bytes);filename=filename.replace(/\.[^.]*$/,'')+'.png';
+   }
    const key=digest(bytes);const existing=result.get(key);
    if(existing)existing.occurrenceIds.push(ref.occurrenceId);else result.set(key,{key,bytes,mime,filename,...(geometry?{geometry}:{}),occurrenceIds:[ref.occurrenceId]});
   }catch(e){if(e instanceof LayoutError){if(!e.occurrenceIds.length)e.occurrenceIds=[ref.occurrenceId];throw e;}throw new LayoutError('image-read',`图片处理失败：${ref.source}`,[ref.occurrenceId]);}
